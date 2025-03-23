@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+
+.t-container {
+@apply  relative rounded-2xl shadow-md before:content-[''] before:absolute before:top-0 before:left-0
+        before:w-full before:h-[8px] before:bg-[linear-gradient(to_right,_#007BFF,_#6A11CB)]
+        max-w-[1000px] min-w-[320px] p-[clamp(20px,5vw,40px)] bg-[#1e1e1e]
+        text-center overflow-hidden;
+}
+
+.ctrl-btn {
+    @apply text-white rounded-[8px] border-none cursor-pointer
+            transition-all duration-300 ease-in-out
+            bg-[linear-gradient(to_right,_#007BFF,_#6A11CB)]
+            text-[clamp(0.9rem,1.5vw,1.3rem)]
+            px-[clamp(15px,5vw,30px)] py-[clamp(10px,2vw,15px)]
+            min-w-[clamp(80px,20vw,120px)]
+            disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-40
+            hover:bg-[linear-gradient(to_right,_#0056B3,_#4A089B)];
+}
