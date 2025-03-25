@@ -1,15 +1,13 @@
 import React from "react"
 
 
-type ButtonProps = {
-    text: string;
-    onClick?: () => void;
-    className?: string;
-    type?: "button" | "submit" | "reset" | null;
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    text: string
 }
-export const Button: React.FC<ButtonProps> = ({text, onClick, className, type}) => {
+
+export const Button: React.FC<ButtonProps> = ({text, className="", ...rest}) => {
     return (
-        <button type={type ? type: 'button'} onClick={onClick} className={`bg-[#333] text-white h-full p-2 ctrl-btn ${className}`}>
+        <button {...rest} className={`bg-[#333] text-white h-full p-2 ctrl-btn ${className}`}>
             {text}
         </button>
     )
