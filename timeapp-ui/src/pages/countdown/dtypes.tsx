@@ -1,7 +1,7 @@
 export interface CountDownHttpData {
     'duration': number,
     'timeUp': boolean
-    'initialDuration': number,
+    'setDuration': number,
     "active": boolean,
     'extensionId': string
 }
@@ -9,5 +9,7 @@ export interface CountDownHttpData {
 export interface SuccessData {
     success: boolean
 }
+
+export type HoverTarget = string[] | null[]
 
 export const BACKEND_URL = 'https://localhost/'

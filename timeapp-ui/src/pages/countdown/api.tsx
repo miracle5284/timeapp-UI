@@ -8,8 +8,8 @@ export const getCountdown = async () => {
     return resp.data
 }
 
-export const startCountdown = async (duration: number, initialDuration: number) => {
-    const resp = await axios.post(`${BACKEND_URL}v2/countdown/`, {duration, initialDuration}, {
+export const startCountdown = async (duration: number, setDuration: number) => {
+    const resp = await axios.post(`${BACKEND_URL}v2/countdown/`, {duration, setDuration}, {
         withCredentials: true
     })
     return resp.data
