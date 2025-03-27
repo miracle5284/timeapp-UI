@@ -5,7 +5,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCountdown, startCountdown, pauseCountdown, resetCountdown } from "./api";
 import { GrAdd, GrSubtract } from "react-icons/gr";
 import { CountDownHttpData, HoverTarget } from "./dtypes.tsx";
+import {notification, useNotificationPermission} from "../../../lib";
+
 import './index.css';
+import "../../assets/clock-circle-svgrepo-com.svg";
+import timeLogo from "../../assets/clock-circle-svgrepo-com.svg";
+
 
 const INITIAL_DISPLAY = [0, 0];
 
@@ -27,9 +32,13 @@ function CountDown() {
 
 
     const [isHover, setIsHover] = useState<HoverTarget>([null, null])
+    const [notificationPermission, setNotificationPermission] = useState(false)
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const endTimeRef = useRef<number>(0);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    useNotificationPermission({permissionHook: [notificationPermission, setNotificationPermission]})
 
     const updateDisplay = useCallback((secs: number) => {
         const hours = Math.floor(secs / 3600);
@@ -56,6 +65,27 @@ function CountDown() {
             setCountdownDuration(0);
         }
     }, [updateDisplay]);
+
+    useEffect(() => {
+        const audio = new Audio('/audio/clock-alarm-8761.mp3');
+        audio.loop = false;
+        audio.preload = 'auto';
+        audioRef.current = audio
+    }, []);
+
+    useEffect(() => {
+        if (countdownData.timeUp) {
+            notification({
+                notificationPermission: notificationPermission,
+                title: "Timer Up",
+                body: `Your ${countdownData.setDuration} seconds has finished`,
+                requireInteraction: true,
+                icon: timeLogo
+            })
+
+            audioRef.current?.play();
+        }
+    }, [countdownData.timeUp]);
 
     const startTimer = useCallback((duration: number, skipEndTimeCalculate?: boolean) => {
         endTimeRef.current = performance.now() + duration * 1000;
@@ -117,8 +147,8 @@ function CountDown() {
             if (response.success) {
                 setCountdownData(prev => ({ ...prev, isActive: false, timeUp: false }));
                 if (intervalRef.current) clearInterval(intervalRef.current);
-                setCountdownDuration(countdownDuration);
-                updateDisplay(countdownDuration);
+                setCountdownDuration(countdownData.setDuration);
+                updateDisplay(countdownData.setDuration);
             }
         },
     });
