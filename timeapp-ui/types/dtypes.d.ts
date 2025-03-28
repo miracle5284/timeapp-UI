@@ -13,4 +13,7 @@ interface ChromeRuntime {
 
 interface Window {
     chrome?: ChromeRuntime;
+    env?: {
+        [key: string]: string | undefined;
+    };
 }
