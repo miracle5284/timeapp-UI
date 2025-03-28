@@ -7,7 +7,7 @@ type NotificationOptions = {
     vibrationPattern?: number[]
 }
 
-export const notification = ({
+export const sendNotification = ({
                                     notificationPermission,
                                     title,
                                     body, icon, requireInteraction, vibrationPattern

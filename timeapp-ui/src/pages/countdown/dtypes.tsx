@@ -11,5 +11,3 @@ export interface SuccessData {
 }
 
 export type HoverTarget = string[] | null[]
-
-export const BACKEND_URL = 'https://localhost/'

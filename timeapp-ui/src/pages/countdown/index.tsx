@@ -5,7 +5,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCountdown, startCountdown, pauseCountdown, resetCountdown } from "./api";
 import { GrAdd, GrSubtract } from "react-icons/gr";
 import { CountDownHttpData, HoverTarget } from "./dtypes.tsx";
-import {notification, useNotificationPermission} from "../../../lib";
+import {sendNotification, useNotificationPermission} from "../../../lib";
+import { ExtensionPrompt } from "../../components/extension";
 
 import './index.css';
 import "../../assets/clock-circle-svgrepo-com.svg";
@@ -75,7 +76,7 @@ function CountDown() {
 
     useEffect(() => {
         if (countdownData.timeUp) {
-            notification({
+            sendNotification({
                 notificationPermission: notificationPermission,
                 title: "Timer Up",
                 body: `Your ${countdownData.setDuration} seconds has finished`,
@@ -242,47 +243,51 @@ function CountDown() {
     }
 
     return (
-        <div className="t-container">
-            <div className="mt-20 mb-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-                {(['hours', 'minutes', 'seconds'] as const).map((unit, i) => (
-                    <React.Fragment key={`wrapper-${i}`}>
-                        <Display
-                            key={unit}
-                            value={display[unit]}
-                            label={unit.toUpperCase()}
-                            childrenEvents={{
-                                onMouseEnter: (e) => handleMouseOver(unit, e),
-                                onMouseLeave: handleMouseLeave
+        <>
+            <div className="t-container">
+                <div className="mt-20 mb-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+                    {(['hours', 'minutes', 'seconds'] as const).map((unit, i) => (
+                        <React.Fragment key={`wrapper-${i}`}>
+                            <Display
+                                key={unit}
+                                value={display[unit]}
+                                label={unit.toUpperCase()}
+                                childrenEvents={{
+                                    onMouseEnter: (e) => handleMouseOver(unit, e),
+                                    onMouseLeave: handleMouseLeave
+                                    }
                                 }
-                            }
-                            triggerIndex={isHover[1]}
-                            topComponent={getTopComponent(unit)}
-                            downComponent={getDownComponent(unit) }
+                                triggerIndex={isHover[1]}
+                                topComponent={getTopComponent(unit)}
+                                downComponent={getDownComponent(unit) }
 
-                        />
-                        {i < 2 && <Colon />}
-                    </React.Fragment>
-                ))}
+                            />
+                            {i < 2 && <Colon />}
+                        </React.Fragment>
+                    ))}
+                </div>
+
+                <div className="justify-center items-center w-full text-center h-15 m-10 text-pink-200 text-5xl">
+                    {countdownData.timeUp && (
+                        <p>Time Up!!!</p>
+                        )
+                    }
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-center items-center w-full text-center h-15 gap-5 sm:gap-10 px-5 md:px-25 mt-4">
+                    <Button text={countdownData.isActive ? "Pause" : "Start"}
+                            className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
+                            disabled={!countdownDuration}
+                            onClick={toggleTimer} />
+                    <Button text="Reset"
+                            className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
+                            disabled={!countdownData.setDuration}
+                            onClick={() => resetTimerMutation.mutate()} />
+                </div>
             </div>
 
-            <div className="justify-center items-center w-full text-center h-15 m-10 text-pink-200 text-5xl">
-                {countdownData.timeUp && (
-                    <p>Time Up!!!</p>
-                    )
-                }
-            </div>
-
-            <div className="flex flex-col sm:flex-row justify-center items-center w-full text-center h-15 gap-5 sm:gap-10 px-5 md:px-25 mt-4">
-                <Button text={countdownData.isActive ? "Pause" : "Start"}
-                        className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
-                        disabled={!countdownDuration}
-                        onClick={toggleTimer} />
-                <Button text="Reset"
-                        className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
-                        disabled={!countdownData.setDuration}
-                        onClick={() => resetTimerMutation.mutate()} />
-            </div>
-        </div>
+            <ExtensionPrompt />
+        </>
     );
 }
 
