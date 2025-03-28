@@ -1,0 +1,76 @@
+name: Preview Deploy PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+jobs:
+  preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create PR Slot
+        run: |
+          az webapp deployment slot create \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --slot pr-${{ github.event.number }} \
+            --configuration-source ${{ secrets.AZURE_WEBAPP_NAME }}
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_NAME }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Deploy to Slot
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          slot-name: pr-${{ github.event.number }}
+          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Comment Preview URL
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-pr-${{ github.event.number }}.azurewebsites.net`
+            })
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete PR Slot
+        run: |
+          az webapp deployment slot delete \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --slot pr-${{ github.event.number }}
