@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/ui-assets';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCountdown, startCountdown, pauseCountdown, resetCountdown } from "./api";
 import { GrAdd, GrSubtract } from "react-icons/gr";
-import { CountDownHttpData, HoverTarget } from "./dtypes.tsx";
+import {CountDownHttpData, HoverTarget, IDisplay} from "./dtypes.tsx";
 import {sendNotification, useNotificationPermission} from "../../../lib";
 import { ExtensionPrompt } from "../../components/extension";
 
@@ -67,6 +67,12 @@ function CountDown() {
         }
     }, [updateDisplay]);
 
+    const calculatedTotalSeconds = useCallback((display:IDisplay) => {
+        return display.hours[0] * 36000 + display.hours[1] * 3600 +
+            display.minutes[0] * 600 + display.minutes[1] * 60 +
+            display.seconds[0] * 10 + display.seconds[1];
+    }, [])
+
     useEffect(() => {
         const audio = new Audio('/audio/clock-alarm-8761.mp3');
         audio.loop = false;
@@ -86,11 +92,13 @@ function CountDown() {
 
             audioRef.current?.play();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [countdownData.timeUp]);
 
     const startTimer = useCallback((duration: number, skipEndTimeCalculate?: boolean) => {
-        endTimeRef.current = performance.now() + duration * 1000;
-        if (!skipEndTimeCalculate) intervalRef.current = setInterval(countDown, 1000);
+
+        if (!skipEndTimeCalculate) endTimeRef.current = performance.now() + duration * 1000;
+        intervalRef.current = setInterval(countDown, 1000);
         setCountdownData(prev => ({ ...prev, isActive: true }));
         updateDisplay(duration);
     }, [countDown, updateDisplay]);
@@ -124,7 +132,9 @@ function CountDown() {
         mutationFn: ({ duration, setDuration }: { duration: number; setDuration: number }) =>
             startCountdown(duration, setDuration),
         onSuccess: (response) => {
-            if (response.success) startTimer(countdownDuration);
+            if (response.success) {
+                startTimer(countdownDuration);
+            }
             setUiChange(false);
         },
     });
@@ -156,10 +166,12 @@ function CountDown() {
 
     const toggleTimer = () => {
         if (!countdownData.isActive) {
+            const calculatedDuration = calculatedTotalSeconds(display)
 
-            setTimerMutation.mutate({ duration: countdownDuration,
-                setDuration:  uiChange ? countdownDuration: countdownData.setDuration});
             setCountdownData(prev => ({ ...prev, setDuration: countdownDuration }));
+            setCountdownDuration(calculatedDuration)
+            setTimerMutation.mutate({ duration: calculatedDuration,
+                setDuration:  uiChange ? countdownDuration: countdownData.setDuration});
         } else {
             pauseTimerMutation.mutate();
         }
@@ -182,9 +194,7 @@ function CountDown() {
                 [face]: newFaceValues
             }
 
-            const newDuration = newDisplay.hours[0] * 36000 + newDisplay.hours[1] * 3600 +
-                newDisplay.minutes[0] * 600 + newDisplay.minutes[1] * 60 +
-                newDisplay.seconds[0] * 10 + newDisplay.seconds[1];
+            const newDuration = calculatedTotalSeconds(newDisplay)
 
             setCountdownData(prev => ({...prev, timeUp: false}))
             setCountdownDuration(newDuration)
@@ -260,6 +270,7 @@ function CountDown() {
                                 triggerIndex={isHover[1]}
                                 topComponent={getTopComponent(unit)}
                                 downComponent={getDownComponent(unit) }
+                                useFlip={true}
 
                             />
                             {i < 2 && <Colon />}

@@ -11,3 +11,10 @@ export interface SuccessData {
 }
 
 export type HoverTarget = string[] | null[]
+
+
+export interface IDisplay {
+    hours: number[];
+    minutes: number[];
+    seconds: number[];
+}

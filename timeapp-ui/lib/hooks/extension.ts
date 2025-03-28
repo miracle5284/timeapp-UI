@@ -6,7 +6,7 @@ import timeLogo from "../../src/assets/clock-circle-svgrepo-com.svg";
 import {useQuery} from "@tanstack/react-query";
 import {getExtensionInfo} from "../api.tsx";
 
-let interval: number | null = null;
+let interval: number = 0;
 let observer: MutationObserver | null = null;
 let extensionInitialized: boolean | null = null;
 let extensionId: string;
@@ -107,9 +107,9 @@ export const useExtensionStatus = () => {
         };
 
         const checkExtensionHandshake = () => {
-            if ((window as any).chrome?.runtime && extensionId) {
-                chrome.runtime.sendMessage(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
-                    const success = !chrome.runtime.lastError && response?.type === "PONG_FROM_EXTENSION";
+            if (window.chrome?.runtime && extensionId) {
+                window.chrome.runtime.sendMessage(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
+                    const success = !window.chrome?.runtime?.lastError && response?.type === "PONG_FROM_EXTENSION";
                     setIsActive(success)
                     updatePromptVisibility(success)
                 });
