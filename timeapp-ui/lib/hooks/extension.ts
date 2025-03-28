@@ -1,12 +1,12 @@
-import {useEffect, useState} from "react";
-import {useNotificationPermission} from "../browsers.ts";
-import {sendNotification} from "../system.ts";
-import {CHROME_EXTENSION_PREFIX_URL} from "../../constant.ts";
+import {useEffect, useRef, useState} from "react";
+import { useNotificationPermission } from "../browsers.ts";
+import { sendNotification } from "../system.ts";
+import { CHROME_EXTENSION_PREFIX_URL } from "../../constant.ts";
 import timeLogo from "../../src/assets/clock-circle-svgrepo-com.svg";
-import {useQuery} from "@tanstack/react-query";
-import {getExtensionInfo} from "../api.tsx";
+import { useQuery } from "@tanstack/react-query";
+import { getExtensionInfo } from "../api.tsx";
 
-let interval: number = 0;
+// Globals for managing extension status and observers
 let observer: MutationObserver | null = null;
 let extensionInitialized: boolean | null = null;
 let extensionId: string;
@@ -20,20 +20,24 @@ const extensionPromptId = "extensionPrompt";
 const dataContainerId = "data-container";
 const extensionName = "timer-keeper";
 
-
-
+/**
+ * Custom hook to manage and monitor Timer Keeper Chrome Extension status.
+ * Handles visibility prompts, notification alerts, and Chrome messaging.
+ */
 export const useExtensionStatus = () => {
-    const [isActive, setIsActive] = useState(true);
+    const [isActive, setIsActive] = useState(true); // Extension connection state
     const [notificationPermission, setNotificationPermission] = useState(false);
-    useNotificationPermission({permissionHook: [notificationPermission, setNotificationPermission]})
+    useNotificationPermission({ permissionHook: [notificationPermission, setNotificationPermission] });
     const [ready, setReady] = useState(false);
+    const interval = useRef<NodeJS.Timeout | null>(null);
 
     const req = document.getElementById(extensionPromptId);
 
     useEffect(() => {
-        setReady(!!req)
+        setReady(!!req);
     }, [req]);
 
+    // Send alert if extension becomes inactive while page is hidden
     useEffect(() => {
         if (!isActive) {
             sendNotification({
@@ -42,22 +46,20 @@ export const useExtensionStatus = () => {
                 body: "Please enable the Timer Keeper extension for optimum results.",
                 requireInteraction: true,
                 icon: timeLogo
-            })
-
+            });
         }
     }, [isActive, notificationPermission]);
 
-    const {data, isLoading} = useQuery({
-            queryFn: getExtensionInfo,
-            queryKey: ['getExtensionInfo']
-        }
-    )
+    // Query backend to retrieve extension meta info (id & title)
+    const { data, isLoading } = useQuery({
+        queryFn: getExtensionInfo,
+        queryKey: ['getExtensionInfo']
+    });
 
     useEffect(() => {
-
         if (data && !isLoading) {
-            extensionId = data.EXTENSION_ID
-            extensionTitle = data.EXTENSION_NAME
+            extensionId = data.EXTENSION_ID;
+            extensionTitle = data.EXTENSION_NAME;
         }
     }, [data, isLoading]);
 
@@ -65,7 +67,10 @@ export const useExtensionStatus = () => {
         const extensionPromptDiv = document.getElementById(extensionPromptId);
         const dataContainerDiv = document.getElementById(dataContainerId);
 
-
+        /**
+         * Checks for the presence of extension cookie
+         * Shows prompt or hides it based on detection
+         */
         const checkForExtension = () => {
             try {
                 const extensionEnableBtn = document.getElementById(extensionEnableBtnId);
@@ -106,12 +111,15 @@ export const useExtensionStatus = () => {
             }
         };
 
+        /**
+         * Sends ping to Chrome extension to verify handshake response
+         */
         const checkExtensionHandshake = () => {
             if (window.chrome?.runtime && extensionId) {
                 window.chrome.runtime.sendMessage(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
                     const success = !window.chrome?.runtime?.lastError && response?.type === "PONG_FROM_EXTENSION";
-                    setIsActive(success)
-                    updatePromptVisibility(success)
+                    setIsActive(success);
+                    updatePromptVisibility(success);
                 });
             } else {
                 setIsActive(false);
@@ -119,6 +127,9 @@ export const useExtensionStatus = () => {
             }
         };
 
+        /**
+         * Show/hide prompt based on extension state
+         */
         const updatePromptVisibility = (active: boolean) => {
             if (extensionPromptDiv) extensionPromptDiv.style.display = active ? "none" : "block";
             if (dataContainerDiv) {
@@ -126,6 +137,9 @@ export const useExtensionStatus = () => {
             }
         };
 
+        /**
+         * Creates observer to watch attribute changes for extension status
+         */
         const getExtensionObserver = () => {
             return new MutationObserver(mutations => {
                 for (const mutation of mutations) {
@@ -138,6 +152,9 @@ export const useExtensionStatus = () => {
             });
         };
 
+        /**
+         * Starts the polling mechanism to verify extension handshake every X seconds
+         */
         const startExtensionHandshake = () => {
             if (!extensionInitialized) {
                 setTimeout(() => {
@@ -145,7 +162,7 @@ export const useExtensionStatus = () => {
                     checkExtensionHandshake();
                 });
             }
-            interval = setInterval(checkExtensionHandshake, extensionHandshakeInterval);
+            interval.current = setInterval(checkExtensionHandshake, extensionHandshakeInterval);
         };
 
         const resumeObserver = () => {
@@ -158,6 +175,9 @@ export const useExtensionStatus = () => {
             if (observer) observer.disconnect();
         };
 
+        /**
+         * Displays a modal explaining how to enable the Chrome extension
+         */
         const showExtensionWarning = () => {
             let modal = document.getElementById("instruction-modal");
             if (!modal) {
@@ -189,7 +209,9 @@ export const useExtensionStatus = () => {
 
         return () => {
             stopObserver();
-            clearInterval(interval);
+            clearInterval(interval.current!);
+            interval.current = null;
+
         };
     }, [ready]);
 
