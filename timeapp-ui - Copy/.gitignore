@@ -22,7 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
 .idea/
-
-**.env
+timeapp-ui - Copy/
