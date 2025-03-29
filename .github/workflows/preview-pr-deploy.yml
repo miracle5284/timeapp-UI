@@ -1,0 +1,101 @@
+name: PR Preview Deploy (Isolated App)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "app=chrona-frontend-pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          echo "plan=chrona-plan-pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push Docker Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Azure Login
+        uses: azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Backend URL from App Settings
+        id: get-backend-url
+        run: |
+          VALUE=$(az webapp config appsettings list \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
+          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
+
+      - name: Deploy Infrastructure with Bicep
+        run: |
+          az deployment group create \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --template-file infrastructure/preview-app.bicep \
+            --parameters \
+              appServiceName=${{ steps.vars.outputs.app }} \
+              appServicePlan=${{ steps.vars.outputs.plan }} \
+              resourceGroupName=${{ secrets.AZURE_RG }} \
+              imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
+              registryUrl=https://${{ secrets.REGISTRY_NAME }} \
+              acrUsername=${{ secrets.ACR_USERNAME }} \
+              acrPassword=${{ secrets.ACR_PASSWORD }} \
+              backendUrl=${{ steps.get-backend-url.outputs.backend_url }}
+
+      - name: Enable Continuous Deployment
+        run: |
+          az webapp deployment container config \
+            --enable-cd true \
+            --name ${{ steps.vars.outputs.app }} \
+            --resource-group ${{ secrets.AZURE_RG }}
+
+      - name: Comment Preview URL
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🧪 Preview deployed: https://${{ steps.vars.outputs.app }}.azurewebsites.net`
+            })
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Cleanup App Service and Plan
+        run: |
+          APP=chrona-frontend-pr-${{ github.event.number }}
+          PLAN=chrona-plan-pr-${{ github.event.number }}
+
+          echo "🧹 Deleting Web App: $APP"
+          az webapp delete --name "$APP" --resource-group ${{ secrets.AZURE_RG }} || echo "App may not exist."
+
+          echo "🧹 Deleting App Service Plan: $PLAN"
+          az appservice plan delete --name "$PLAN" --resource-group ${{ secrets.AZURE_RG }} --yes || echo "Plan may not exist."

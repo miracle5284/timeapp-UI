@@ -3,7 +3,7 @@ name: Preview Deploy PR
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [master]
+    branches: [staging]
 
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
     continue-on-error: true
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set slot name
         id: slot
@@ -65,7 +65,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Azure Login
-        uses: azure/login@v1
+        uses: Azure/login@v2.2.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -102,23 +102,20 @@ jobs:
             --resource-group "${{ secrets.AZURE_RG }}" \
             --slot "pr-${{ github.event.number }}"
 
-      - name: Copy App Settings to Slot
+      - name: Inject Dev Backend URL into Slot
         run: |
           SLOT="pr-${{ github.event.number }}"
-          SETTINGS=("BACKEND_API_URL")
+          VALUE=$(az webapp config appsettings list \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
 
-          for VAR in "${SETTINGS[@]}"; do
-            VALUE=$(az webapp config appsettings list \
-              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
-              --resource-group "${{ secrets.AZURE_RG }}" \
-              --query "[?name=='$VAR'].value" -o tsv)
-
-            az webapp config appsettings set \
-              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
-              --resource-group "${{ secrets.AZURE_RG }}" \
-              --slot "$SLOT" \
-              --settings "$VAR=$VALUE"
-          done
+          echo "🔗 Injecting BACKEND_API_URL: $VALUE"
+          az webapp config appsettings set \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --settings BACKEND_API_URL="$VALUE"
 
       - name: Deploy to PR Slot
         uses: azure/webapps-deploy@v2
@@ -166,7 +163,7 @@ jobs:
 
     steps:
       - name: Azure Login
-        uses: azure/login@v1
+        uses: Azure/login@v2.2.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
