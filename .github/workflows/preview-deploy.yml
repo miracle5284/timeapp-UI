@@ -16,57 +16,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    outputs:
+      upgraded: ${{ steps.check_upgrade.outputs.did_upgrade }}
+
     steps:
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Upgrade App Service Plan to Standard (S1)
+      - id: check_upgrade
         run: |
-          az appservice plan update \
-            --name ${{ secrets.AZURE_PLAN_NAME }} \
-            --resource-group ${{ secrets.AZURE_RG }} \
-            --sku S1
+          current_sku=$(az appservice plan show \
+            --name "${{ secrets.AZURE_PLAN_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --query "sku.name" -o tsv)
 
-      - name: Wait for Upgrade to Complete (max 6 mins)
-        run: |
-          set -euo pipefail
-          echo "⏳ Waiting for App Service Plan to upgrade to Standard (S1)..."
-
-          timeout_limit=360  # seconds
-          check_interval=10
-          start_time=$(date +%s)
-
-          while true; do
-            current_sku=$(az appservice plan show \
+          if [ "$current_sku" = "S1" ]; then
+            echo "No upgrade needed."
+            echo "did_upgrade=false" >> $GITHUB_OUTPUT
+          else
+            echo "Upgrading ASP to Standard (S1)..."
+            az appservice plan update \
               --name "${{ secrets.AZURE_PLAN_NAME }}" \
               --resource-group "${{ secrets.AZURE_RG }}" \
-              --query "sku.name" -o tsv || echo "error")
-
-            if [ "$current_sku" = "S1" ]; then
-              echo "✅ Upgrade complete. Current SKU: $current_sku"
-              break
-            fi
-
-            now=$(date +%s)
-            elapsed=$((now - start_time))
-
-            if [ "$elapsed" -ge "$timeout_limit" ]; then
-              echo "❌ Timeout after ${elapsed}s. Upgrade did not complete."
-              exit 1
-            fi
-
-            echo "⏳ Still upgrading... (elapsed: ${elapsed}s, current SKU: $current_sku)"
-            sleep "$check_interval"
-          done
+              --sku S1
+            echo "did_upgrade=true" >> $GITHUB_OUTPUT
+          fi
 
   preview:
     if: github.event.action != 'closed'
     needs: upgrade
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true  # 👈 So we can catch failure
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v3
@@ -75,19 +58,10 @@ jobs:
         id: slot
         run: echo "slot=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
 
-      - name: Build Docker Image
+      - name: Build & Push Docker Image
         run: |
           docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
-
-      - name: Login to ACR
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.REGISTRY_NAME }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Push Docker Image
-        run: |
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
           docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Azure Login
@@ -97,23 +71,36 @@ jobs:
 
       - name: Ensure PR Slot Exists
         run: |
-          SLOT_NAME="pr-${{ github.event.number }}"
-          echo "🔍 Checking if slot '$SLOT_NAME' exists..."
-          if az webapp deployment slot show \
+          SLOT="pr-${{ github.event.number }}"
+          az webapp deployment slot show \
             --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
             --resource-group "${{ secrets.AZURE_RG }}" \
-            --slot "$SLOT_NAME" &> /dev/null; then
-            echo "✅ Slot already exists."
-          else
-            echo "📦 Creating slot '$SLOT_NAME'..."
-            az webapp deployment slot create \
+            --slot "$SLOT" &>/dev/null || \
+          az webapp deployment slot create \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --configuration-source "${{ secrets.AZURE_WEBAPP_NAME }}"
+
+      - name: Copy App Settings to Slot
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          SETTINGS=("BACKEND_API_URL")
+
+          for VAR in "${SETTINGS[@]}"; do
+            VALUE=$(az webapp config appsettings list \
               --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RG }}" \
-              --slot "$SLOT_NAME" \
-              --configuration-source "${{ secrets.AZURE_WEBAPP_NAME }}"
-          fi
+              --query "[?name=='$VAR'].value" -o tsv)
 
-      - name: Deploy to Azure PR Slot
+            az webapp config appsettings set \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RG }}" \
+              --slot "$SLOT" \
+              --settings "$VAR=$VALUE"
+          done
+
+      - name: Deploy to PR Slot
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
@@ -121,52 +108,36 @@ jobs:
           images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Comment Preview URL
+        if: success()
         uses: actions/github-script@v6
         with:
           script: |
-            const prNumber = context.issue.number;
-            const appName = process.env.AZURE_WEBAPP_NAME;
             github.rest.issues.createComment({
-              issue_number: prNumber,
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🧪 Preview deployed: https://${appName}-pr-${prNumber}.azurewebsites.net`
+              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-pr-${{ github.event.number }}.azurewebsites.net`
             })
-        env:
-          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
 
-      - name: Downgrade ASP to B1 on Failure (with cleanup)
-        if: failure()
+      - name: Downgrade & Cleanup on Failure
+        if: failure() && needs.upgrade.outputs.upgraded == 'true'
         run: |
-          echo "⚠️ Something went wrong. Cleaning up preview slots and downgrading to B1..."
+          SLOT="pr-${{ github.event.number }}"
+          APP="${{ secrets.AZURE_WEBAPP_NAME }}"
+          RG="${{ secrets.AZURE_RG }}"
+          PLAN="${{ secrets.AZURE_PLAN_NAME }}"
 
-          RESOURCE_GROUP="${{ secrets.AZURE_RG }}"
-          APP_NAME="${{ secrets.AZURE_WEBAPP_NAME }}"
-          PLAN_NAME="${{ secrets.AZURE_PLAN_NAME }}"
+          echo "❌ Preview job failed. Deleting slot before downgrade..."
+          az webapp deployment slot delete \
+            --name "$APP" \
+            --resource-group "$RG" \
+            --slot "$SLOT" || echo "Slot may already be gone"
 
-          echo "🔍 Fetching slots..."
-          slots=$(az webapp deployment slot list \
-            --name "$APP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query "[].name" -o tsv)
-
-          for slot in $slots; do
-            # skip the default slot (same name as app)
-            if [[ "$slot" == "$APP_NAME/pr-"* ]]; then
-              SLOT_NAME="${slot##*/}"  # extract only the slot name
-              echo "🧹 Deleting slot: $SLOT_NAME"
-              az webapp deployment slot delete \
-                --name "$APP_NAME" \
-                --resource-group "$RESOURCE_GROUP" \
-                --slot "$SLOT_NAME"
-            fi
-          done
-
-          echo "⬇️ Downgrading plan to Basic (B1)..."
+          echo "⬇️ Downgrading App Service Plan to Basic (B1)..."
           az appservice plan update \
-            --name "$PLAN_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --sku B1  
+            --name "$PLAN" \
+            --resource-group "$RG" \
+            --sku B1
 
   cleanup:
     if: github.event.action == 'closed'
@@ -179,18 +150,21 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Delete Preview Slot
+      - name: Cleanup PR Slot & Downgrade Plan Gracefully
         run: |
-          echo "🧹 Deleting preview deployment slot..."
-          az webapp deployment slot delete \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --resource-group ${{ secrets.AZURE_RG }} \
-            --slot preview || echo "❗ Slot may not exist, skipping."
+          SLOT="pr-${{ github.event.number }}"
+          APP="${{ secrets.AZURE_WEBAPP_NAME }}"
+          RG="${{ secrets.AZURE_RG }}"
+          PLAN="${{ secrets.AZURE_PLAN_NAME }}"
 
-      - name: Downgrade App Service Plan to Basic (B1)
-        run: |
-          echo "⬇️ Downgrading App Service Plan to Basic (B1)..."
+          echo "🧹 Deleting PR slot: $SLOT"
+          az webapp deployment slot delete \
+            --name "$APP" \
+            --resource-group "$RG" \
+            --slot "$SLOT" || echo "Slot may not exist."
+
+          echo "⬇️ Attempting downgrade..."
           az appservice plan update \
-            --name ${{ secrets.AZURE_PLAN_NAME }} \
-            --resource-group ${{ secrets.AZURE_RG }} \
-            --sku B1
+            --name "$PLAN" \
+            --resource-group "$RG" \
+            --sku B1 || echo "⚠️ Downgrade failed — likely other slots exist. Skipping."
