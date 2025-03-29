@@ -5,6 +5,11 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches: [master]
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   upgrade:
     if: github.event.action != 'closed'
@@ -130,15 +135,38 @@ jobs:
         env:
           AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
 
-      - name: Downgrade ASP to B1 on Failure
+      - name: Downgrade ASP to B1 on Failure (with cleanup)
         if: failure()
         run: |
-          echo "⚠️ Something went wrong in preview job. Downgrading ASP to Basic (B1)..."
+          echo "⚠️ Something went wrong. Cleaning up preview slots and downgrading to B1..."
+
+          RESOURCE_GROUP="${{ secrets.AZURE_RG }}"
+          APP_NAME="${{ secrets.AZURE_WEBAPP_NAME }}"
+          PLAN_NAME="${{ secrets.AZURE_PLAN_NAME }}"
+
+          echo "🔍 Fetching slots..."
+          slots=$(az webapp deployment slot list \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[].name" -o tsv)
+
+          for slot in $slots; do
+            # skip the default slot (same name as app)
+            if [[ "$slot" == "$APP_NAME/pr-"* ]]; then
+              SLOT_NAME="${slot##*/}"  # extract only the slot name
+              echo "🧹 Deleting slot: $SLOT_NAME"
+              az webapp deployment slot delete \
+                --name "$APP_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --slot "$SLOT_NAME"
+            fi
+          done
+
+          echo "⬇️ Downgrading plan to Basic (B1)..."
           az appservice plan update \
-            --name ${{ secrets.AZURE_PLAN_NAME }} \
-            --resource-group ${{ secrets.AZURE_RG }} \
-            --sku B1
-  
+            --name "$PLAN_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --sku B1  
 
   cleanup:
     if: github.event.action == 'closed'
