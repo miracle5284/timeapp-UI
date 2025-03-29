@@ -5,32 +5,69 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches: [master]
 
-  workflow_dispatch:
-
 jobs:
-  preview:
+  upgrade:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v3
-
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create PR Slot
+      - name: Upgrade App Service Plan to Standard (S1)
         run: |
-          az webapp deployment slot create \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+          az appservice plan update \
+            --name ${{ secrets.AZURE_PLAN_NAME }} \
             --resource-group ${{ secrets.AZURE_RG }} \
-            --slot pr-${{ github.event.number }} \
-            --configuration-source ${{ secrets.AZURE_WEBAPP_NAME }}
+            --sku S1
+
+      - name: Wait for Upgrade to Complete (max 6 mins)
+        run: |
+          set -euo pipefail
+          echo "⏳ Waiting for App Service Plan to upgrade to Standard (S1)..."
+
+          timeout_limit=360  # seconds
+          check_interval=10
+          start_time=$(date +%s)
+
+          while true; do
+            current_sku=$(az appservice plan show \
+              --name "${{ secrets.AZURE_PLAN_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RG }}" \
+              --query "sku.name" -o tsv || echo "error")
+
+            if [ "$current_sku" = "S1" ]; then
+              echo "✅ Upgrade complete. Current SKU: $current_sku"
+              break
+            fi
+
+            now=$(date +%s)
+            elapsed=$((now - start_time))
+
+            if [ "$elapsed" -ge "$timeout_limit" ]; then
+              echo "❌ Timeout after ${elapsed}s. Upgrade did not complete."
+              exit 1
+            fi
+
+            echo "⏳ Still upgrading... (elapsed: ${elapsed}s, current SKU: $current_sku)"
+            sleep "$check_interval"
+          done
+
+  preview:
+    if: github.event.action != 'closed'
+    needs: upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v3
 
       - name: Build Docker Image
         run: |
-          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview .
 
       - name: Login to ACR
         uses: azure/docker-login@v1
@@ -41,14 +78,19 @@ jobs:
 
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview
 
-      - name: Deploy to Slot
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Preview Slot
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          slot-name: pr-${{ github.event.number }}
-          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+          slot-name: preview
+          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
@@ -58,21 +100,32 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-pr-${{ github.event.number }}.azurewebsites.net`
+              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-preview.azurewebsites.net`
             })
 
   cleanup:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Delete PR Slot
+      - name: Delete Preview Slot
         run: |
+          echo "🧹 Deleting preview deployment slot..."
           az webapp deployment slot delete \
             --name ${{ secrets.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ secrets.AZURE_RG }} \
-            --slot pr-${{ github.event.number }}
+            --slot preview || echo "❗ Slot may not exist, skipping."
+
+      - name: Downgrade App Service Plan to Basic (B1)
+        run: |
+          echo "⬇️ Downgrading App Service Plan to Basic (B1)..."
+          az appservice plan update \
+            --name ${{ secrets.AZURE_PLAN_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --sku B1
