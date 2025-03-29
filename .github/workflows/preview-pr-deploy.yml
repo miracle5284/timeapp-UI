@@ -53,7 +53,6 @@ jobs:
             --parameters \
               appServiceName=${{ steps.vars.outputs.app }} \
               appServicePlan=${{ steps.vars.outputs.plan }} \
-              resourceGroupName=${{ secrets.AZURE_RG }} \
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
