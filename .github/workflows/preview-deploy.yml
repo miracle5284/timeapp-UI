@@ -61,13 +61,18 @@ jobs:
     needs: upgrade
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    continue-on-error: true  # 👈 So we can catch failure
 
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set slot name
+        id: slot
+        run: echo "slot=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+
       - name: Build Docker Image
         run: |
-          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview .
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
 
       - name: Login to ACR
         uses: azure/docker-login@v1
@@ -78,30 +83,62 @@ jobs:
 
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Preview Slot
+      - name: Ensure PR Slot Exists
+        run: |
+          SLOT_NAME="pr-${{ github.event.number }}"
+          echo "🔍 Checking if slot '$SLOT_NAME' exists..."
+          if az webapp deployment slot show \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT_NAME" &> /dev/null; then
+            echo "✅ Slot already exists."
+          else
+            echo "📦 Creating slot '$SLOT_NAME'..."
+            az webapp deployment slot create \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RG }}" \
+              --slot "$SLOT_NAME" \
+              --configuration-source "${{ secrets.AZURE_WEBAPP_NAME }}"
+          fi
+
+      - name: Deploy to Azure PR Slot
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          slot-name: preview
-          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:preview
+          slot-name: pr-${{ github.event.number }}
+          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
         with:
           script: |
+            const prNumber = context.issue.number;
+            const appName = process.env.AZURE_WEBAPP_NAME;
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-preview.azurewebsites.net`
+              body: `🧪 Preview deployed: https://${appName}-pr-${prNumber}.azurewebsites.net`
             })
+        env:
+          AZURE_WEBAPP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+
+      - name: Downgrade ASP to B1 on Failure
+        if: failure()
+        run: |
+          echo "⚠️ Something went wrong in preview job. Downgrading ASP to Basic (B1)..."
+          az appservice plan update \
+            --name ${{ secrets.AZURE_PLAN_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --sku B1
+  
 
   cleanup:
     if: github.event.action == 'closed'
