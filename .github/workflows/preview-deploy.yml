@@ -3,7 +3,9 @@ name: Preview Deploy PR
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [main]
+    branches: [master]
+
+  workflow_dispatch:
 
 jobs:
   preview:
