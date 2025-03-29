@@ -82,6 +82,26 @@ jobs:
             --slot "$SLOT" \
             --configuration-source "${{ secrets.AZURE_WEBAPP_NAME }}"
 
+      - name: Set Container Settings (image + auth)
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          az webapp config container set \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --docker-custom-image-name "${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}" \
+            --docker-registry-server-url "https://${{ secrets.REGISTRY_NAME }}" \
+            --docker-registry-server-user "${{ secrets.ACR_USERNAME }}" \
+            --docker-registry-server-password "${{ secrets.ACR_PASSWORD }}"
+
+      - name: Enable Continuous Deployment on Slot
+        run: |
+          az webapp deployment container config \
+            --enable-cd true \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "pr-${{ github.event.number }}"
+
       - name: Copy App Settings to Slot
         run: |
           SLOT="pr-${{ github.event.number }}"
