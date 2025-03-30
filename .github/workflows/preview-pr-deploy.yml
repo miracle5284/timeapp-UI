@@ -23,7 +23,7 @@ jobs:
         id: vars
         run: |
           echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
-          echo "plan=chrona-plan-pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
 
       - name: Build & Push Docker Image
         run: |
@@ -121,7 +121,7 @@ jobs:
       - name: Cleanup App Service and Plan
         run: |
           APP=pr-${{ github.event.number }}-chrona-frontend
-          PLAN=chrona-plan-pr-${{ github.event.number }}
+          PLAN=pr-${{ github.event.number }}-chrona-plan
 
           echo "🧹 Deleting Web App: $APP"
           az webapp delete --name "$APP" --resource-group ${{ secrets.AZURE_RG }} || echo "App may not exist."
