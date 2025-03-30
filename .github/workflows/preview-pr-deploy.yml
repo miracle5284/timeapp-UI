@@ -45,6 +45,20 @@ jobs:
             --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
           echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
 
+      - name: Delete existing app/plan if already present
+        run: |
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+
+          echo "🧹 Checking for existing app: $APP"
+          az webapp show --name "$APP" --resource-group "$RG" &>/dev/null && \
+          az webapp delete --name "$APP" --resource-group "$RG" || echo "No app to delete"
+
+          echo "🧹 Checking for existing plan: $PLAN"
+          az appservice plan show --name "$PLAN" --resource-group "$RG" &>/dev/null && \
+          az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes || echo "No plan to delete"
+
       - name: Deploy Infrastructure with Bicep
         run: |
           az deployment group create \
