@@ -73,7 +73,6 @@ jobs:
           else
             echo "No plan to delete."
           fi
-      
 
       - name: Deploy Infrastructure with Bicep
         run: |
@@ -95,6 +94,32 @@ jobs:
             --enable-cd true \
             --name ${{ steps.vars.outputs.app }} \
             --resource-group ${{ secrets.AZURE_RG }}
+
+      - name: Update backend PRODUCTION_SERVERS
+        run: |
+          APP=${{ steps.vars.outputs.app }}
+          BACKEND_APP=${{ secrets.BACKEND_APP_NAME }}
+          BACKEND_RG=${{ secrets.BACKEND_RG }}
+          SERVER_URL="https://${APP}.azurewebsites.net"
+          
+          echo "🔍 Fetching existing PRODUCTION_SERVERS..."
+          EXISTING=$(az webapp config appsettings list \
+            --name "$BACKEND_APP" \
+            --resource-group "$BACKEND_RG" \
+            --query "[?name=='PRODUCTION_SERVERS'].value" -o tsv)
+
+          echo "✅ Current: $EXISTING"
+          
+          if [[ "$EXISTING" == *"$SERVER_URL"* ]]; then
+            echo "✅ URL already present in PRODUCTION_SERVERS. Skipping update."
+          else
+            echo "📝 Appending new URL..."
+            UPDATED="${EXISTING:+$EXISTING, }$SERVER_URL"
+            az webapp config appsettings set \
+              --name "$BACKEND_APP" \
+              --resource-group "$BACKEND_RG" \
+              --settings "PRODUCTION_SERVERS=$UPDATED"
+          fi
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
