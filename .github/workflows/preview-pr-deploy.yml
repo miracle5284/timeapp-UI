@@ -52,12 +52,28 @@ jobs:
           RG=${{ secrets.AZURE_RG }}
 
           echo "🧹 Checking for existing app: $APP"
-          az webapp show --name "$APP" --resource-group "$RG" &>/dev/null && \
-          az webapp delete --name "$APP" --resource-group "$RG" || echo "No app to delete"
+          if az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
+            az webapp delete --name "$APP" --resource-group "$RG"
+            echo "⌛ Waiting for app to be deleted..."
+            for i in {1..12}; do
+              sleep 10
+              if ! az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
+                echo "✅ App deleted."
+                break
+              fi
+              echo "⏳ Still deleting... ($i/12)"
+            done
+          else
+            echo "No app to delete."
+          fi
 
           echo "🧹 Checking for existing plan: $PLAN"
-          az appservice plan show --name "$PLAN" --resource-group "$RG" &>/dev/null && \
-          az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes || echo "No plan to delete"
+          if az appservice plan show --name "$PLAN" --resource-group "$RG" &>/dev/null; then
+            az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes
+          else
+            echo "No plan to delete."
+          fi
+      
 
       - name: Deploy Infrastructure with Bicep
         run: |
