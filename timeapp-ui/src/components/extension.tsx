@@ -5,27 +5,35 @@ export const ExtensionPrompt = () => {
 
     return (
         <>
-            {/* 🛠 Always rendered so MutationObserver can track it */}
+            {/* Hidden container for MutationObserver */}
             <div id="data-container" data-active="" style={{ display: "none" }} />
 
-            {/* Prompt is only shown when inactive */}
             {!isExtensionActive && (
-                <div id="extensionPrompt" className="mt-4 text-sm text-yellow-400">
+                <div
+                    id="extensionPrompt"
+                    className="text-center text-xs sm:text-sm text-yellow-300 mt-4 sm:mt-6 px-4 sm:px-0 max-w-[90%] sm:max-w-full"
+                >
                     For the best experience, please{" "}
-                    <span id="installLink" rel="noopener noreferrer">
-                        <a target="_blank" href="#" className="underline">install</a>
-                        {" "} and {" "} activate
-                    </span>{" "}
+                    <a
+                        id="installLink"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        href="#"
+                        className="underline underline-offset-2 hover:text-yellow-200 transition"
+                    >
+                        install
+                    </a>{" "}
+                    and{" "}
                     <a
                         id="enableLink"
                         href=""
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline"
+                        className="underline underline-offset-2 hover:text-yellow-200 transition"
                     >
                         activate
                     </a>{" "}
-                    the Timer Keeper Active extension.
+                    the <strong>Timer Keeper Active</strong> extension.
                 </div>
             )}
         </>

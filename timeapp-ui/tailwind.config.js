@@ -17,6 +17,9 @@ module.exports = {
                 'smooth-appear': 'smooth-appear 200ms ease-out forwards',
                 'smooth-disappear': 'smooth-disappear 200ms ease-in forwards',
             },
+            maxHeight: {
+                screen: '100vh',
+            }
         },
     },
     plugins: [],

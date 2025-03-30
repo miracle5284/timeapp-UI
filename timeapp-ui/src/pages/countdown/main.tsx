@@ -278,8 +278,8 @@ function CountDownComponent() {
         <>
             <div className="t-container">
                 {/* Timer display */}
-                <div className="mt-20 mb-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-                    {(['hours', 'minutes', 'seconds'] as const).map((unit, i) => (
+                <div className="mt-6 sm:mt-20 mb-4 sm:mb-12 flex flex-wrap justify-center items-center gap-3 sm:gap-6 px-2 sm:px-4">
+                {(['hours', 'minutes', 'seconds'] as const).map((unit, i) => (
                         <React.Fragment key={`wrapper-${i}`}>
                             <Display
                                 key={unit}
@@ -300,21 +300,22 @@ function CountDownComponent() {
                 </div>
 
                 {/* Time-up message */}
-                <div className="justify-center items-center w-full text-center h-15 m-10 text-pink-200 text-5xl">
-                    {countdownData.timeUp && <p>Time Up!!!</p>}
+                <div className="text-pink-200 text-2xl sm:text-5xl m-4 sm:m-10 px-2 sm:px-6 text-center">
+                {countdownData.timeUp && <p>Time Up!!!</p>}
                 </div>
 
                 {/* Timer controls */}
-                <div className="flex flex-col sm:flex-row justify-center items-center w-full text-center h-15 gap-5 sm:gap-10 px-5 md:px-25 mt-4">
+                <div className="flex flex-col sm:flex-row justify-center items-center w-full text-center gap-3 sm:gap-10 px-4 md:px-20 mt-4">
+
                     <Button
                         text={countdownData.isActive ? "Pause" : "Start"}
-                        className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
+                        className="w-full sm:min-w-[6rem] text-sm sm:text-lg md:text-xl"
                         disabled={!countdownDuration}
                         onClick={toggleTimer}
                     />
                     <Button
                         text="Reset"
-                        className="w-full sm:min-w-4 text-lg sm:text-xl md:text-2xl"
+                        className="w-full sm:min-w-[6rem] text-sm sm:text-lg md:text-xl"
                         disabled={!countdownData.setDuration}
                         onClick={() => resetTimerMutation.mutate()}
                     />
