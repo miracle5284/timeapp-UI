@@ -22,14 +22,14 @@ const Display: React.FC<DisplayProps> = (
         <div className="flex flex-col items-center text-white" {...props}>
             <div className="flex">
                 {value.map((char, index) => (
-                    <>
                         <div
-                            id={`${index}`}
+                            id={`${label}${index}`}
                             className="flex flex-col justify-center items-center opacity-80 pb-0"
+                            key={`${label}${index}`}
                             {...childrenEvents}
                         >
                             {/* Top Component (e.g., + button) */}
-                            <div className="h-4">
+                            <div className="h-4" key={`tp${label}${index}`}>
                                 {(!childrenEvents || (triggerIndex && triggerIndex === String(index))) && topComponent}
                             </div>
 
@@ -57,7 +57,6 @@ const Display: React.FC<DisplayProps> = (
                                 {childrenEvents ? triggerIndex && triggerIndex === String(index) && downComponent : downComponent}
                             </div>
                         </div>
-                    </>
                 ))}
             </div>
             {/* Label under digits */}

@@ -22,7 +22,7 @@ jobs:
       - name: Set variables
         id: vars
         run: |
-          echo "app=chrona-frontend-pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
           echo "plan=chrona-plan-pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
 
       - name: Build & Push Docker Image
@@ -120,7 +120,7 @@ jobs:
 
       - name: Cleanup App Service and Plan
         run: |
-          APP=chrona-frontend-pr-${{ github.event.number }}
+          APP=pr-${{ github.event.number }}-chrona-frontend
           PLAN=chrona-plan-pr-${{ github.event.number }}
 
           echo "🧹 Deleting Web App: $APP"
