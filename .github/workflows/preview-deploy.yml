@@ -1,0 +1,187 @@
+name: Preview Deploy PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [staging]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  upgrade:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      upgraded: ${{ steps.check_upgrade.outputs.did_upgrade }}
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - id: check_upgrade
+        run: |
+          current_sku=$(az appservice plan show \
+            --name "${{ secrets.AZURE_PLAN_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --query "sku.name" -o tsv)
+
+          if [ "$current_sku" = "S1" ]; then
+            echo "No upgrade needed."
+            echo "did_upgrade=false" >> $GITHUB_OUTPUT
+          else
+            echo "Upgrading ASP to Standard (S1)..."
+            az appservice plan update \
+              --name "${{ secrets.AZURE_PLAN_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RG }}" \
+              --sku S1
+            echo "did_upgrade=true" >> $GITHUB_OUTPUT
+          fi
+
+  preview:
+    if: github.event.action != 'closed'
+    needs: upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set slot name
+        id: slot
+        run: echo "slot=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push Docker Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Azure Login
+        uses: Azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Ensure PR Slot Exists
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          az webapp deployment slot show \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" &>/dev/null || \
+          az webapp deployment slot create \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --configuration-source "${{ secrets.AZURE_WEBAPP_NAME }}"
+
+      - name: Set Container Settings (image + auth)
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          az webapp config container set \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --docker-custom-image-name "${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}" \
+            --docker-registry-server-url "https://${{ secrets.REGISTRY_NAME }}" \
+            --docker-registry-server-user "${{ secrets.ACR_USERNAME }}" \
+            --docker-registry-server-password "${{ secrets.ACR_PASSWORD }}"
+
+      - name: Enable Continuous Deployment on Slot
+        run: |
+          az webapp deployment container config \
+            --enable-cd true \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "pr-${{ github.event.number }}"
+
+      - name: Inject Dev Backend URL into Slot
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          VALUE=$(az webapp config appsettings list \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
+
+          echo "🔗 Injecting BACKEND_API_URL: $VALUE"
+          az webapp config appsettings set \
+            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RG }}" \
+            --slot "$SLOT" \
+            --settings BACKEND_API_URL="$VALUE"
+
+      - name: Deploy to PR Slot
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          slot-name: pr-${{ github.event.number }}
+          images: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Comment Preview URL
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🧪 Preview deployed: https://${{ secrets.AZURE_WEBAPP_NAME }}-pr-${{ github.event.number }}.azurewebsites.net`
+            })
+
+      - name: Downgrade & Cleanup on Failure
+        if: failure() && needs.upgrade.outputs.upgraded == 'true'
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          APP="${{ secrets.AZURE_WEBAPP_NAME }}"
+          RG="${{ secrets.AZURE_RG }}"
+          PLAN="${{ secrets.AZURE_PLAN_NAME }}"
+
+          echo "❌ Preview job failed. Deleting slot before downgrade..."
+          az webapp deployment slot delete \
+            --name "$APP" \
+            --resource-group "$RG" \
+            --slot "$SLOT" || echo "Slot may already be gone"
+
+          echo "⬇️ Downgrading App Service Plan to Basic (B1)..."
+          az appservice plan update \
+            --name "$PLAN" \
+            --resource-group "$RG" \
+            --sku B1
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Azure Login
+        uses: Azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Cleanup PR Slot & Downgrade Plan Gracefully
+        run: |
+          SLOT="pr-${{ github.event.number }}"
+          APP="${{ secrets.AZURE_WEBAPP_NAME }}"
+          RG="${{ secrets.AZURE_RG }}"
+          PLAN="${{ secrets.AZURE_PLAN_NAME }}"
+
+          echo "🧹 Deleting PR slot: $SLOT"
+          az webapp deployment slot delete \
+            --name "$APP" \
+            --resource-group "$RG" \
+            --slot "$SLOT" || echo "Slot may not exist."
+
+          echo "⬇️ Attempting downgrade..."
+          az appservice plan update \
+            --name "$PLAN" \
+            --resource-group "$RG" \
+            --sku B1 || echo "⚠️ Downgrade failed — likely other slots exist. Skipping."

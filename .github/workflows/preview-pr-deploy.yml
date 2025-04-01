@@ -1,0 +1,155 @@
+name: PR Preview Deploy (Isolated App)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
+          echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
+
+      - name: Build & Push Docker Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
+
+      - name: Azure Login
+        uses: azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Backend URL from App Settings
+        id: get-backend-url
+        run: |
+          VALUE=$(az webapp config appsettings list \
+            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
+          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
+
+      - name: Delete existing app/plan if already present
+        run: |
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+
+          echo "🧹 Checking for existing app: $APP"
+          if az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
+            az webapp delete --name "$APP" --resource-group "$RG"
+            echo "⌛ Waiting for app to be deleted..."
+            for i in {1..12}; do
+              sleep 10
+              if ! az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
+                echo "✅ App deleted."
+                break
+              fi
+              echo "⏳ Still deleting... ($i/12)"
+            done
+          else
+            echo "No app to delete."
+          fi
+
+          echo "🧹 Checking for existing plan: $PLAN"
+          if az appservice plan show --name "$PLAN" --resource-group "$RG" &>/dev/null; then
+            az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes
+          else
+            echo "No plan to delete."
+          fi
+
+      - name: Deploy Infrastructure with Bicep
+        run: |
+          az deployment group create \
+            --resource-group ${{ secrets.AZURE_RG }} \
+            --template-file infrastructure/preview-app.bicep \
+            --parameters \
+              appServiceName=${{ steps.vars.outputs.app }} \
+              appServicePlan=${{ steps.vars.outputs.plan }} \
+              imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
+              registryUrl=https://${{ secrets.REGISTRY_NAME }} \
+              acrUsername=${{ secrets.ACR_USERNAME }} \
+              acrPassword=${{ secrets.ACR_PASSWORD }} \
+              backendUrl=${{ steps.get-backend-url.outputs.backend_url }}
+
+      - name: Enable Continuous Deployment
+        run: |
+          az webapp deployment container config \
+            --enable-cd true \
+            --name ${{ steps.vars.outputs.app }} \
+            --resource-group ${{ secrets.AZURE_RG }}
+
+      - name: Update backend PRODUCTION_SERVERS
+        run: |
+          APP=${{ steps.vars.outputs.app }}
+          BACKEND_APP=${{ secrets.BACKEND_APP_NAME }}
+          BACKEND_RG=${{ secrets.BACKEND_RG }}
+          SERVER_URL="https://${APP}.azurewebsites.net"
+          
+          echo "🔍 Fetching existing PRODUCTION_SERVERS..."
+          EXISTING=$(az webapp config appsettings list \
+            --name "$BACKEND_APP" \
+            --resource-group "$BACKEND_RG" \
+            --query "[?name=='PRODUCTION_SERVERS'].value" -o tsv)
+
+          echo "✅ Current: $EXISTING"
+          
+          if [[ "$EXISTING" == *"$SERVER_URL"* ]]; then
+            echo "✅ URL already present in PRODUCTION_SERVERS. Skipping update."
+          else
+            echo "📝 Appending new URL..."
+            UPDATED="${EXISTING:+$EXISTING, }$SERVER_URL"
+            az webapp config appsettings set \
+              --name "$BACKEND_APP" \
+              --resource-group "$BACKEND_RG" \
+              --settings "PRODUCTION_SERVERS=$UPDATED"
+          fi
+
+      - name: Comment Preview URL
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🧪 Preview deployed: https://${{ steps.vars.outputs.app }}.azurewebsites.net`
+            })
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2.2.0
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Cleanup App Service and Plan
+        run: |
+          APP=pr-${{ github.event.number }}-chrona-frontend
+          PLAN=pr-${{ github.event.number }}-chrona-plan
+
+          echo "🧹 Deleting Web App: $APP"
+          az webapp delete --name "$APP" --resource-group ${{ secrets.AZURE_RG }} || echo "App may not exist."
+
+          echo "🧹 Deleting App Service Plan: $PLAN"
+          az appservice plan delete --name "$PLAN" --resource-group ${{ secrets.AZURE_RG }} --yes || echo "Plan may not exist."
