@@ -7,7 +7,7 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const Button: React.FC<ButtonProps> = ({text, className="", ...rest}) => {
     return (
-        <button {...rest} className={`bg-[#333] text-white h-full p-2 ctrl-btn ${className}`}>
+        <button {...rest} className={`bg-[#333] text-white p-2 ctrl-btn ${className}`}>
             {text}
         </button>
     )
