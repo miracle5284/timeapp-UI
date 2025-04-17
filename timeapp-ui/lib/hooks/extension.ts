@@ -4,7 +4,7 @@ import { sendNotification } from "../system.ts";
 import { CHROME_EXTENSION_PREFIX_URL } from "../../constant.ts";
 import timeLogo from "../../src/assets/clock-circle-svgrepo-com.svg";
 import { useQuery } from "@tanstack/react-query";
-import { getExtensionInfo } from "../api.tsx";
+import { getExtensionInfo } from "../api";
 
 // Globals for managing extension status and observers
 let observer: MutationObserver | null = null;

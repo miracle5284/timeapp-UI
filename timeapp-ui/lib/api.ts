@@ -13,3 +13,22 @@ export const getExtensionInfo = async () => {
     });
     return resp.data;
 };
+
+
+const API = axios.create({
+    baseURL: BACKEND_URL,
+    headers: {
+        "Content-Type": "application/json",
+    }
+});
+
+API.interceptors.request.use(config => {
+    const token = localStorage.getItem("accessToken");
+    //const refreshToken = localStorage.getItem("refresh");
+    if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+});
+
+export default API;
