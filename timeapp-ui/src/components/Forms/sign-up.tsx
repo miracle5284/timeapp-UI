@@ -5,6 +5,9 @@ import { Button } from "../ui/ui-assets";
 import { useState } from "react";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { toast } from "react-hot-toast";
+import {REGISTER_USER_ENDPOINT, USER_AUTH_TOKEN_ENDPOINT} from "../../../constant";
+import {useAuth} from "../../context/use-auth";
+import API from "../../../lib/api";
 
 const signupSchema = z
     .object({
@@ -18,6 +21,7 @@ const signupSchema = z
             .min(1, "This field is required")
             .min(3, "Name is too short")
             .regex(/^[A-Za-z]+$/, "Last name must contain only letters"),
+        username: z.string().min(1, "This field is required").min(3, "Username is too short"),
         email: z.string().min(1, "This field is required").email("Invalid email"),
         password: z.string().min(1, "This field is required").min(6, "Password must be at least 6 characters"),
         confirmPassword: z.string().min(1, "This field is required"),
@@ -43,12 +47,16 @@ export default function SignUpForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const { login } = useAuth();
 
     const onSubmit = async (data: SignUpFormValues) => {
         setLoading(true);
         try {
-            console.log("Sign Up Data:", data);
-            await new Promise((res) => setTimeout(res, 1000));
+            await API.post(REGISTER_USER_ENDPOINT, data);
+            const { email, password } = data;
+            const loginResp = await API.post(USER_AUTH_TOKEN_ENDPOINT, {email, password});
+            const { access, refresh } = loginResp.data;
+            login(access, refresh);
             toast.success("Account created successfully!");
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong.";
@@ -88,7 +96,7 @@ export default function SignUpForm() {
                 <button
                     type="button"
                     onClick={toggle}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 transform text-gray-500"
+                    className="absolute right-4 top-1/2 transform text-gray-500"
                 >
                     {visible ? <FaEyeSlash /> : <FaEye />}
                 </button>
@@ -104,6 +112,7 @@ export default function SignUpForm() {
     const fields: { label: string; name: keyof SignUpFormValues; type?: string; autoComplete?: string }[] = [
         { label: "First Name", name: "firstName", autoComplete: "given-name" },
         { label: "Last Name", name: "lastName", autoComplete: "family-name" },
+        { label: "Username", name: "username", autoComplete: "username" },
         { label: "Email", name: "email", type: "email", autoComplete: "email" },
     ];
 

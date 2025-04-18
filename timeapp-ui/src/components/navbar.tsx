@@ -1,12 +1,15 @@
 import { Menu, X } from "lucide-react"
 import {useEffect, useState} from "react";
-import {navItems} from "../../constant.ts";
-import {Modal} from "./ui/modal.tsx";
-import AuthSwitcher from "./auth-switcher.tsx";
+import {navItems} from "../../constant";
+import {Modal} from "./ui/modal";
+import AuthSwitcher from "./auth-switcher";
+import {useAuth} from "../context/use-auth";
+import {Authenticated} from "./authenticated";
 
 function Navbar() {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [authModalView, setAuthModalView] = useState<null | string>(null);
+    const { user, loading } = useAuth();
 
     useEffect(() => {
         console.log(authModalView, 'view')
@@ -14,7 +17,12 @@ function Navbar() {
 
     const toggleNavbar  = () => setMobileNavOpen(!mobileNavOpen);
     return (
-        <>
+            loading ? (
+                <div className="h-16 flex items-center justify-center">
+                    <span className="text-sm text-gray-400">Loading user...</span>
+                </div>
+            ) : (
+            <>
             <nav className="sticky top-0 z-50 py-3 backdrop-blur-lg border-b border-neutral-700/80">
                 <div className="container px-4 mx-auto relative text-sm">
                     <div className="flex justify-between items-center">
@@ -28,6 +36,10 @@ function Navbar() {
                                 </li>
                             ))}
                         </ul>
+                        {user && (
+                            <Authenticated />
+                            )}
+                        {!user && (
                         <div className="hidden lg:flex justify-center space-x-12 items-center">
                             <a href="#" className="py-2 px-3 rounded-md" onClick={() => setAuthModalView("sign-in")}>Sign In</a>
                             <a href="#" className="bg-gradient-to-r from-orange-500 to-orange-800 py-2 px-3 rounded-md"
@@ -36,6 +48,7 @@ function Navbar() {
                                 Create an account
                             </a>
                         </div>
+                            )}
                         <div className="lg:hidden md:flex flex-col justify-end">
                             <button onClick={toggleNavbar}>
                                 {mobileNavOpen ? <X /> : <Menu />}
@@ -68,7 +81,7 @@ function Navbar() {
             </nav>
             {authModalView && (
                 <Modal
-                    isOpen={!!authModalView}
+                    isOpen={!!authModalView && !user }
                     onClose={() => setTimeout(() => setAuthModalView(null), 1300)}
                 >
                     <AuthSwitcher signUp={authModalView === "sign-up"}/>
@@ -77,7 +90,7 @@ function Navbar() {
                 )
             }
         </>
-    )
+        ))
 }
 
 export default Navbar;

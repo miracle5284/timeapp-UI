@@ -5,6 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { toast } from "react-hot-toast";
+import {useAuth} from "../../context/use-auth";
+import {USER_AUTH_TOKEN_ENDPOINT} from "../../../constant";
+import API from "../../../lib/api";
 
 const signinSchema = z
     .object({
@@ -25,15 +28,22 @@ export function SignInForm() {
         mode: "onBlur",
     });
 
+    const { login } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const onSubmit = async (data: SignInFormValues) => {
         setLoading(true);
         try {
-            console.log("Sign In Data:", data);
-            await new Promise((res) => setTimeout(res, 1000));
-            toast.success("Signed in successfully!");
+            const { email, password } = data;
+            const resp = await API.post(USER_AUTH_TOKEN_ENDPOINT, { email, password });
+            const { access, refresh } = resp.data;
+            if (access && refresh) {
+                login(access, refresh);
+                toast.success("Login successful");
+            } else {
+                toast.error("Invalid credentials");
+            }
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong.";
             console.error("Sign in error:", err);
@@ -95,7 +105,7 @@ export function SignInForm() {
                 <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 transform text-gray-500"
+                    className="absolute right-4 top-1/2 transform text-gray-500"
                 >
                     {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>

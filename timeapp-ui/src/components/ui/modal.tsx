@@ -10,7 +10,6 @@ type ModalProps = {
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
     const [visible, setVisible] = useState(false);
     const [shouldRender, setShouldRender] = useState(isOpen);
-    const modalRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
 
     // ESC key close
@@ -19,9 +18,11 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
             if (e.key === "Escape") handleButtonClose();
         };
         document.addEventListener("keydown", handleEsc);
+
+        if (!isOpen) handleButtonClose();
         return () => document.removeEventListener("keydown", handleEsc);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [onClose]);
+    }, [onClose, isOpen]);
 
     // Manage visibility and mount state
     useEffect(() => {
@@ -53,7 +54,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
             }`}
         >
             <div
-                ref={modalRef}
+
                 className={`relative rounded-2xl p-6 shadow-xl sm:w-3/4 lg:w-2/3 transition-all duration-1000 ${
                     visible ? "opacity-100 scale-100" : "opacity-0 scale-0"
                 }`}
