@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { AuthContext } from "./user-context.ts";
+import { AuthContext } from "./auth/user-context.ts";
 
 /**
  * Custom hook to access authentication context.

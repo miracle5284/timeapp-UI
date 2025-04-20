@@ -28,6 +28,9 @@ export function SignInForm() {
         mode: "onBlur",
     });
 
+    // const [email, setEmail] = useState("");
+    // const [password, setPassword] = useState("");
+    //const [error, setError] = useState("");
     const { login } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);

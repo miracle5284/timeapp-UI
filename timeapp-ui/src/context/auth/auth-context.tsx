@@ -1,7 +1,8 @@
-import React, { useState } from "react";
-import API from "../../lib/api.ts";
+import React, {useEffect, useState} from "react";
+import API from "../../../lib/api.ts";
 import { useQuery } from "@tanstack/react-query";
-import { AuthContext, User } from "./user-context";
+import { AuthContext, User } from "./user-context.ts";
+import {setRefetch} from "../../../lib/api";
 
 // Expected API response format for the user query
 interface UserResponse {
@@ -43,6 +44,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         delete API.defaults.headers.common["Authorization"];
     };
 
+    useEffect(() => {
+        setRefetch(refetch); // update refetch function on mount
+
+    }, [refetch]);
+
     return (
         <AuthContext.Provider
             value={{
@@ -50,6 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 login,
                 logout,
                 loading: isLoading,
+                refetch,
             }}
         >
             {children}

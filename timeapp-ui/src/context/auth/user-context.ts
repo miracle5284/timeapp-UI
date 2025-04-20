@@ -21,6 +21,7 @@ export interface AuthContextType {
     login: (access: string, refresh: string) => void;
     logout: () => void;
     loading: boolean;
+    refetch: () => void;
 }
 
 // Create the context with a default fallback (will be overwritten by the Provider)
