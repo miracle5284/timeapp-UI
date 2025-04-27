@@ -74,12 +74,12 @@ const processQueue = (error: unknown, token: string | null = null) => {
  * @throws Will throw if no refresh token exists or refresh fails.
  * @returns A new access token string.
  */
-const refreshToken = async (): Promise<string> => {
+const refreshToken = async (): Promise<{access: string, refresh: string}> => {
     const refresh = localStorage.getItem("refreshToken");
     if (!refresh) throw new Error("No refresh token found");
 
-    const resp = await API.post(`${BACKEND_URL}/users/auth/token/refresh`, { refresh });
-    return resp.data.access;
+    const resp = await axios.post(`${BACKEND_URL}/users/auth/token/refresh`, { refresh });
+    return resp.data;
 };
 
 // Request interceptor: attach access token to outgoing requests
@@ -123,8 +123,9 @@ API.interceptors.response.use(
 
             try {
                 // Perform token refresh and reissue original request
-                const newAccessToken = await refreshToken();
+                const { access: newAccessToken, refresh: newRefreshToken } = await refreshToken();
                 localStorage.setItem("accessToken", newAccessToken);
+                localStorage.setItem("refreshToken", newRefreshToken);
                 API.defaults.headers["Authorization"] = `Bearer ${newAccessToken}`;
                 triggerRefetchUser(); // Update user state in context
 
