@@ -5,6 +5,7 @@ import {Modal} from "./ui/modal";
 import AuthSwitcher from "./auth-switcher";
 import {useAuth} from "../context/use-auth";
 import {Authenticated} from "./authenticated";
+import {Link} from "react-router-dom";
 
 function Navbar() {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -32,7 +33,7 @@ function Navbar() {
                         <ul className="hidden lg:flex ml-14 space-x-12">
                             {navItems.map((item, index) => (
                                 <li key={index}>
-                                    <a href={item.href}>{item.label}</a>
+                                    <Link to={item.href}>{item.label}</Link>
                                 </li>
                             ))}
                         </ul>
