@@ -1,9 +1,9 @@
----
-
 **Chrona Source-Available License**
-*Version 1.0 — Drafted on: [Insert date here]*
+
+*Version 1.0 — Drafted on: March 27, 2025*
 
 **Copyright © Miracle Mayowa Adebunmi (a.k.a. BluePrime)**
+
 All rights reserved.
 
 ---

@@ -2,9 +2,17 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import Display, { Colon } from '../../components/ui/display';
 import { Button } from '../../components/ui/ui-assets';
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getCountdown, startCountdown, pauseCountdown, resetCountdown } from "./api";
+import {getCountdown, startCountdown, pauseCountdown, resetCountdown, completeCountdown} from "./api";
 import { GrAdd, GrSubtract } from "react-icons/gr";
-import { CountDownHttpData, HoverTarget, IDisplay } from "./dtypes.tsx";
+import {
+    CountdownState,
+    HoverTarget,
+    ICompleteCountdown,
+    IDisplay,
+    IPauseCountdown,
+    IResetCountdown, IStartCountdown,
+    TimerResponse
+} from "./dtypes.tsx";
 import { sendNotification, useNotificationPermission } from "../../../lib";
 
 import './index.css';
@@ -18,11 +26,15 @@ const INITIAL_DISPLAY = [0, 0];
  * Handles timer setup, countdown logic, session persistence, and UI interaction
  */
 function CountDownComponent() {
-    const [countdownData, setCountdownData] = useState({
+    const [countdownData, setCountdownData] = useState<CountdownState>({
+        id: null,         // Timer ID
         isActive: false,      // Is timer currently running
-        extensionId: '',      // For future browser extension integration
         timeUp: false,        // Flag for when timer hits zero
-        setDuration: 0,       // Original set duration in seconds
+        durationSeconds: 0,   // Original set duration in seconds
+        remainingDurationSeconds: 0, // Remaining duration in seconds
+        startAt: null,        // Start time
+        pausedAt: null,       // Pause time
+        resumedAt: null,      // Resume time
     });
 
     const [countdownDuration, setCountdownDuration] = useState(0); // Remaining duration
@@ -33,6 +45,8 @@ function CountDownComponent() {
         seconds: INITIAL_DISPLAY,
     });
 
+    const [timerIndex, setTimerIndex] = useState<number | null>(null); // For tracking which digit is being changed
+    const [triggerCompletion, setTriggerCompletion] = useState(false); // For tracking which digit is being changed
     const [isHover, setIsHover] = useState<HoverTarget>([null, null]); // For tracking hovered digit
     const [notificationPermission, setNotificationPermission] = useState(false); // Notification toggle
 
@@ -70,6 +84,7 @@ function CountDownComponent() {
             clearInterval(intervalRef.current!);
             intervalRef.current = null;
             setCountdownData(prev => ({ ...prev, timeUp: true, isActive: false }));
+            setTriggerCompletion(true)
             setCountdownDuration(0);
         }
     }, [updateDisplay]);
@@ -97,7 +112,7 @@ function CountDownComponent() {
             sendNotification({
                 notificationPermission,
                 title: "Timer Up",
-                body: `Your ${countdownData.setDuration} seconds has finished`,
+                body: `Your ${countdownData.durationSeconds} seconds has finished`,
                 requireInteraction: true,
                 icon: timeLogo
             });
@@ -106,6 +121,17 @@ function CountDownComponent() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [countdownData.timeUp]);
+
+    useEffect(() => {
+        if (triggerCompletion) {
+            completeTimerMutation.mutate({
+                id: countdownData.id!,
+                timestamp: new Date().toISOString()
+            })
+        }
+
+        setTriggerCompletion(false)
+    }, [triggerCompletion]);
 
     /**
      * Initializes and starts the timer with specified duration
@@ -118,7 +144,7 @@ function CountDownComponent() {
     }, [countDown, updateDisplay]);
 
     // Fetch timer state from backend on mount
-    const { data, isLoading } = useQuery<CountDownHttpData>({
+    const { data, isLoading } = useQuery<TimerResponse>({
         queryKey: ['getTimer'],
         queryFn: getCountdown,
     });
@@ -126,28 +152,37 @@ function CountDownComponent() {
     useEffect(() => {
         if (!isLoading && data) {
             endTimeRef.current = performance.now() + data.duration * 1000;
+    useEffect(() => {
+        if (!isLoading && data?.results && data.results.length > 0) {
+            const index = data.results.length - 1;
+            setTimerIndex(index)
+            const _data = data.results[index];
+            endTimeRef.current = performance.now() + _data.remainingDurationSeconds * 1000;
             setCountdownData({
-                isActive: data.active,
-                extensionId: data.extensionId,
-                timeUp: data.timeUp,
-                setDuration: data.setDuration,
+                id: _data.id,
+                isActive: _data.status === "active",
+                timeUp: _data.status === "completed",
+                status: _data.status,
+                durationSeconds: _data.durationSeconds,
+                remainingDurationSeconds: _data.remainingDurationSeconds,
+                startAt: _data.startAt || null, pausedAt: _data.pausedAt || null, resumedAt: _data.resumedAt || null,
             });
 
-            updateDisplay(data.duration);
-            setCountdownDuration(data.duration);
+            updateDisplay(_data.remainingDurationSeconds);
+            setCountdownDuration(_data.remainingDurationSeconds);
 
-            if (data.active && data.duration > 0) {
-                startTimer(data.duration, false);
+            if (_data.status === 'active' && _data.remainingDurationSeconds > 0) {
+                startTimer(_data.remainingDurationSeconds, false);
             }
         }
     }, [data, isLoading, startTimer, updateDisplay]);
 
     // Set timer mutation
     const setTimerMutation = useMutation({
-        mutationFn: ({ duration, setDuration }: { duration: number; setDuration: number }) =>
-            startCountdown(duration, setDuration),
+        mutationFn: ({ id, name, durationSeconds, timestamp }: IStartCountdown) =>
+            startCountdown(id!, name, durationSeconds, timestamp),
         onSuccess: (response) => {
-            if (response.success) {
+            if (response.status === "active") {
                 startTimer(countdownDuration);
             }
             setUiChange(false);
@@ -156,9 +191,11 @@ function CountDownComponent() {
 
     // Pause timer mutation
     const pauseTimerMutation = useMutation({
-        mutationFn: pauseCountdown,
+        mutationFn: ({ id, remainingDurationSeconds, timestamp }: IPauseCountdown) =>
+            pauseCountdown(id, remainingDurationSeconds, timestamp),
         onSuccess: (response) => {
             if (response.success) {
+            if (response.status === "paused") {
                 setCountdownData(prev => ({ ...prev, isActive: false }));
                 if (intervalRef.current) {
                     clearInterval(intervalRef.current);
@@ -170,32 +207,44 @@ function CountDownComponent() {
 
     // Reset timer mutation
     const resetTimerMutation = useMutation({
-        mutationFn: resetCountdown,
+        mutationFn: ({ id } : IResetCountdown) => resetCountdown(id),
         onSuccess: (response) => {
-            if (response.success) {
+            if (response.status === "inactive") {
                 setCountdownData(prev => ({ ...prev, isActive: false, timeUp: false }));
                 if (intervalRef.current) clearInterval(intervalRef.current);
-                setCountdownDuration(countdownData.setDuration);
-                updateDisplay(countdownData.setDuration);
+                setCountdownDuration(countdownData.durationSeconds);
+                updateDisplay(countdownData.durationSeconds);
             }
         },
+    });
+
+    const completeTimerMutation = useMutation({
+        mutationFn: ({ id, timestamp } : ICompleteCountdown) => completeCountdown(id, timestamp),
+
     });
 
     /**
      * Handles timer start or pause toggle based on current state
      */
     const toggleTimer = () => {
+        const calculatedDuration = calculatedTotalSeconds(display);
         if (!countdownData.isActive) {
-            const calculatedDuration = calculatedTotalSeconds(display);
 
-            setCountdownData(prev => ({ ...prev, setDuration: countdownDuration }));
+            // setCountdownData(prev => ({ ...prev, durationSeconds: countdownDuration }));
             setCountdownDuration(calculatedDuration);
             setTimerMutation.mutate({
-                duration: calculatedDuration,
-                setDuration: uiChange ? countdownDuration : countdownData.setDuration
+                id: countdownData?.id || null,
+                name: "",
+                durationSeconds: uiChange ? countdownDuration : countdownData.durationSeconds,
+                timestamp: new Date().toISOString()
             });
         } else {
             pauseTimerMutation.mutate();
+            pauseTimerMutation.mutate({
+                id: countdownData.id!,
+                remainingDurationSeconds: calculatedDuration,
+                timestamp: new Date().toISOString()
+            });
         }
     };
 
@@ -316,8 +365,8 @@ function CountDownComponent() {
                     <Button
                         text="Reset"
                         className="w-full sm:min-w-[6rem] text-sm sm:text-lg md:text-xl"
-                        disabled={!countdownData.setDuration}
-                        onClick={() => resetTimerMutation.mutate()}
+                        disabled={!countdownData.durationSeconds}
+                        onClick={() => resetTimerMutation.mutate({id: countdownData.id!})}
                     />
                 </div>
             </div>
