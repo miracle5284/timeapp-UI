@@ -39,10 +39,7 @@ jobs:
       - name: Get Backend URL from Container App Secrets
         id: get-backend-url
         run: |
-          VALUE=$(az containerapp secret list \
-            --name ${{ secrets.BACKEND_CONTAINER_APP_NAME }} \
-            --resource-group ${{ secrets.BACKEND_RG }} \
-            --query "[?name=='base-url'].value" -o tsv)
+          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
 
           echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
 
@@ -139,14 +136,6 @@ jobs:
           
           az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
             --secrets "allowed-hosts=$NEW_ALLOWED cors-allowed-origins=$NEW_CORS"
-
-      - name: Restart backend container app revision
-        run: |
-          BACKEND_APP=${{ secrets.BACKEND_CONTAINER_APP_NAME }}
-          RG=${{ secrets.AZURE_RG }}
-
-          echo "Restarting backend container app revision..."
-          az containerapp revision restart --name "$BACKEND_APP" --resource-group "$RG"
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
