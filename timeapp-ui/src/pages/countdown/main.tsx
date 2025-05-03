@@ -131,6 +131,7 @@ function CountDownComponent() {
         }
 
         setTriggerCompletion(false)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [triggerCompletion]);
 
     /**
@@ -149,9 +150,6 @@ function CountDownComponent() {
         queryFn: getCountdown,
     });
 
-    useEffect(() => {
-        if (!isLoading && data) {
-            endTimeRef.current = performance.now() + data.duration * 1000;
     useEffect(() => {
         if (!isLoading && data?.results && data.results.length > 0) {
             const index = data.results.length - 1;
@@ -195,7 +193,6 @@ function CountDownComponent() {
         mutationFn: ({ id, remainingDurationSeconds, timestamp }: IPauseCountdown) =>
             pauseCountdown(id, remainingDurationSeconds, timestamp),
         onSuccess: (response) => {
-            if (response.success) {
             if (response.status === "paused") {
                 setCountdownData(prev => ({ ...prev, isActive: false }));
                 if (intervalRef.current) {
@@ -240,7 +237,6 @@ function CountDownComponent() {
                 timestamp: new Date().toISOString()
             });
         } else {
-            pauseTimerMutation.mutate();
             pauseTimerMutation.mutate({
                 id: countdownData.id!,
                 remainingDurationSeconds: calculatedDuration,
