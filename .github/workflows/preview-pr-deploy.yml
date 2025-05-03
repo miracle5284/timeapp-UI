@@ -101,11 +101,11 @@ jobs:
           APP_URL="https://${{ steps.vars.outputs.app }}.azurewebsites.net"
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
-          echo "Fetching existing ALLOWED_HOSTS..."
-          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --query "value" -o tsv)
+          echo "Fetching existing ALLOWED-HOSTS..."
+          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
 
-          echo "Fetching existing CORS_ALLOWED_ORIGINS..."
-          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --query "value" -o tsv)
+          echo "Fetching existing CORS-ALLOWED-ORIGINS..."
+          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
 
           echo "Updating ALLOWED_HOSTS..."
           if [[ "$EXISTING_ALLOWED" == *"$APP_URL"* ]]; then
@@ -113,7 +113,7 @@ jobs:
             UPDATED_ALLOWED="$EXISTING_ALLOWED"
           else
             UPDATED_ALLOWED="${EXISTING_ALLOWED:+$EXISTING_ALLOWED,}$APP_URL"
-            az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --value "$UPDATED_ALLOWED"
+            az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --value "$UPDATED_ALLOWED"
           fi
 
           echo "Updating CORS_ALLOWED_ORIGINS..."
@@ -122,7 +122,7 @@ jobs:
             UPDATED_CORS="$EXISTING_CORS"
           else
             UPDATED_CORS="${EXISTING_CORS:+$EXISTING_CORS,}$APP_URL"
-            az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --value "$UPDATED_CORS"
+            az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --value "$UPDATED_CORS"
           fi
 
       - name: Update backend Container App env vars
@@ -132,13 +132,13 @@ jobs:
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
           echo "Fetching updated ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS from Vault..."
-          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --query "value" -o tsv)
-          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --query "value" -o tsv)
+          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
 
           echo "Updating backend container app env vars..."
           
           az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
-            --secrets "ALLOWED_HOSTS=$NEW_ALLOWED" "CORS_ALLOWED_ORIGINS=$NEW_CORS"
+            --secrets "allowed-hosts=$NEW_ALLOWED cors-allowed-origins=$NEW_CORS"
 
       - name: Restart backend container app revision
         run: |
@@ -187,16 +187,16 @@ jobs:
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
           echo "Fetching current ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS..."
-          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --query "value" -o tsv)
-          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --query "value" -o tsv)
+          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
 
           echo "Removing APP_URL from ALLOWED_HOSTS..."
           UPDATED_ALLOWED=$(echo "$EXISTING_ALLOWED" | sed "s#${APP_URL},*##g" | sed 's#,,#,#g' | sed 's#^,\|,$##g')
-          az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --value "$UPDATED_ALLOWED"
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --value "$UPDATED_ALLOWED"
 
           echo "Removing APP_URL from CORS_ALLOWED_ORIGINS..."
           UPDATED_CORS=$(echo "$EXISTING_CORS" | sed "s#${APP_URL},*##g" | sed 's#,,#,#g' | sed 's#^,\|,$##g')
-          az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --value "$UPDATED_CORS"
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --value "$UPDATED_CORS"
 
       - name: Update backend Container App env vars
         run: |
@@ -205,10 +205,10 @@ jobs:
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
           echo "Fetching updated ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS..."
-          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED_HOSTS" --query "value" -o tsv)
-          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS_ALLOWED_ORIGINS" --query "value" -o tsv)
+          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
 
           echo "Updating backend container app env vars..."
-          az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP_NAME" \
-            --secrets "ALLOWED_HOSTS=$NEW_ALLOWED" "CORS_ALLOWED_ORIGINS=$NEW_CORS""ALLOWED_HOSTS=$NEW_ALLOWED" "CORS_ALLOWED_ORIGINS=$NEW_CORS"
+          az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
+            --secrets "allowed-hosts=$NEW_ALLOWED cors-allowed-origins=$NEW_CORS"
 
