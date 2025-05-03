@@ -8,7 +8,7 @@ import { BACKEND_URL } from "../constant";
  * @returns {Promise<Object>} - Extension information from the backend.
  */
 export const getExtensionInfo = async () => {
-    const resp = await axios.get(`${BACKEND_URL}/extension-info`, {
+    const resp = await axios.get(`${BACKEND_URL}/misc/extension-info`, {
         withCredentials: true, // Include cookies for session-based auth
     });
     return resp.data;
