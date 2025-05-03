@@ -108,6 +108,7 @@ function CountDownComponent() {
 
     // Trigger notification and sound when timer is up
     useEffect(() => {
+        console.log(timerIndex)
         if (countdownData.timeUp) {
             sendNotification({
                 notificationPermission,
@@ -173,7 +174,7 @@ function CountDownComponent() {
                 startTimer(_data.remainingDurationSeconds, false);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [data, isLoading, startTimer, updateDisplay]);
 
     // Set timer mutation
