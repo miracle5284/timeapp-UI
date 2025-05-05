@@ -4,10 +4,11 @@ import { X } from "lucide-react";
 type ModalProps = {
     isOpen: boolean;
     onClose: () => void;
+    message: string | null;
     children: React.ReactNode;
 };
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, message, children }) => {
     const [visible, setVisible] = useState(false);
     const [shouldRender, setShouldRender] = useState(isOpen);
     const overlayRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
                 >
                     <X className="w-5 h-5" />
                 </button>
+
+                {message && (
+                    <div className="mb-4 text-center text-red-500 text-md">
+                        { message }
+                    </div>
+                )}
 
                 {children}
             </div>

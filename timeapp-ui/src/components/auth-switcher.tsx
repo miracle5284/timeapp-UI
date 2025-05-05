@@ -1,5 +1,5 @@
 // AuthSwitcher.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import SignUpForm from "./Forms/sign-up";
 import { SignInForm } from "./Forms/sign-in";
 import { Button } from "./ui/ui-assets";
@@ -11,10 +11,6 @@ type AuthSwitcherProps = {
 
 function AuthSwitcher({ signUp }: AuthSwitcherProps) {
     const [isSignUp, setIsSignUp] = useState(!!signUp);
-
-    useEffect(() => {
-        console.log("isSignup", isSignUp);
-    }, [isSignUp]);
 
     return (
         <div className="min-h-[800px] flex items-center justify-center relative overflow-hidden px-4">

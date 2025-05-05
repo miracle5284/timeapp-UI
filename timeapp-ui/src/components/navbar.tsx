@@ -1,20 +1,30 @@
 import { Menu, X } from "lucide-react"
-import {useEffect, useState} from "react";
-import {navItems} from "../../constant";
-import {Modal} from "./ui/modal";
+import { useEffect, useState } from "react";
+import { navItems } from "../../constant";
+import { Modal } from "./ui/modal";
 import AuthSwitcher from "./auth-switcher";
-import {useAuth} from "../context/use-auth";
-import {Authenticated} from "./authenticated";
-import {Link} from "react-router-dom";
+import { useAuth } from "../context/use-auth";
+import { Authenticated } from "./authenticated";
+import { Link } from "react-router-dom";
+import { eventBus } from "../../lib/event-bus"
 
 function Navbar() {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [authModalView, setAuthModalView] = useState<null | string>(null);
+    const [authModalMessage, setAuthModalMessage] = useState<null | string>(null)
     const { user, loading } = useAuth();
 
     useEffect(() => {
-        console.log(authModalView, 'view')
-    }, [authModalView]);
+        const handleAuthExpired = (payload: {reason: string}) => {
+            setAuthModalMessage(payload.reason);
+            setAuthModalView('sign-in')
+        };
+
+        eventBus.on('auth:expired', handleAuthExpired);
+        return () => {
+            eventBus.off('auth:expired', handleAuthExpired)
+        };
+    }, []);
 
     const toggleNavbar  = () => setMobileNavOpen(!mobileNavOpen);
     return (
@@ -84,6 +94,7 @@ function Navbar() {
                 <Modal
                     isOpen={!!authModalView && !user }
                     onClose={() => setTimeout(() => setAuthModalView(null), 1300)}
+                    message={authModalMessage}
                 >
                     <AuthSwitcher signUp={authModalView === "sign-up"}/>
 

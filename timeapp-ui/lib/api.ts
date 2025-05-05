@@ -1,4 +1,5 @@
 import axios from "axios";
+import {eventBus} from "./event-bus";
 import { BACKEND_URL } from "../constant";
 
 /**
@@ -97,9 +98,10 @@ API.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
+        const unauthorized = error.response?.status === 401
         // Check if error is due to expired token
         const isTokenExpired =
-            error.response?.status === 401 &&
+            unauthorized &&
             error.response?.data?.code === "token_not_valid" &&
             error.response?.data?.messages?.[0]?.message === "Token is expired";
 
@@ -136,11 +138,14 @@ API.interceptors.response.use(
                 processQueue(err, null); // Fail all queued requests
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
+                eventBus.emit("auth:expired", {reason: "Access required. Please sign in."});
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;
             }
         }
+
+        else eventBus.emit("auth:expired", {reason: "Access required. Please sign in."});
 
         // For non-token-related errors, just propagate the original error
         return Promise.reject(error);
