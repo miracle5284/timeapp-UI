@@ -1,19 +1,17 @@
-type EventHandler = (payload?: object) => void;
-
-const events: Record<string, EventHandler[]> = {};
+const events: { [K in EventKey]?: EventHandler<K>[] } = {};
 
 export const eventBus = {
-    on(event: string, callback: EventHandler) {
+    on<K extends EventKey>(event: K, callback: EventHandler<K>) {
         (events[event] || (events[event] = [])).push(callback)
     },
 
-    off(event: string, callback: EventHandler) {
+    off<K extends EventKey>(event: K, callback: EventHandler<K>) {
         if (events[event]) {
             events[event] = events[event].filter(cb => cb !== callback)
         }
     },
 
-    emit(event: string, payload?: object) {
+    emit<K extends EventKey>(event: K, payload: EventMap[K]) {
         (events[event] || []).forEach(cb => cb(payload))
     }
 };
