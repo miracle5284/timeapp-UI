@@ -3,7 +3,8 @@ import { useState } from "react";
 import SignUpForm from "./Forms/sign-up";
 import { SignInForm } from "./Forms/sign-in";
 import { Button } from "./ui/ui-assets";
-import { FaFacebookF, FaGoogle, FaLinkedinIn } from "react-icons/fa";
+import {OAuthButtons} from "./oauth-buttons.tsx";
+import {useAuth} from "../context/use-auth.ts";
 
 type AuthSwitcherProps = {
     signUp?: boolean;
@@ -11,6 +12,7 @@ type AuthSwitcherProps = {
 
 function AuthSwitcher({ signUp }: AuthSwitcherProps) {
     const [isSignUp, setIsSignUp] = useState(!!signUp);
+    const { login } = useAuth()
 
     return (
         <div className="min-h-[800px] flex items-center justify-center relative overflow-hidden px-4">
@@ -25,17 +27,8 @@ function AuthSwitcher({ signUp }: AuthSwitcherProps) {
                         <h2 className="text-4xl font-extrabold text-center mb-6 text-gray-800 tracking-tight">
                             {isSignUp ? "Create Account" : "Sign In"}
                         </h2>
-                        <div className="flex justify-center gap-4 mb-6">
-                            <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-blue-600 shadow hover:scale-110 transition">
-                                <FaFacebookF />
-                            </button>
-                            <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-red-500 shadow hover:scale-110 transition">
-                                <FaGoogle />
-                            </button>
-                            <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-blue-700 shadow hover:scale-110 transition">
-                                <FaLinkedinIn />
-                            </button>
-                        </div>
+                        <OAuthButtons onLogin={login} />
+
                         <p className="text-center text-sm mb-6 text-gray-500">
                             {isSignUp ? "or use your email" : "or use your account"}
                         </p>

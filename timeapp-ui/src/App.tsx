@@ -2,6 +2,7 @@ import './index.css';
 import { Routes, Route } from "react-router-dom"
 import CountDown from "./pages/countdown";
 import Navbar from "./components/navbar.tsx";
+import OAuthPopup from "./pages/popups/oauth-popup.tsx";
 
 function App() {
     return (
@@ -11,6 +12,7 @@ function App() {
                 <Routes>
                     <Route path="/" element={<CountDown />} />
                     <Route path="/countdown" element={<CountDown />} />
+                    <Route path="/oauth/popup" element={<OAuthPopup />} />
                 </Routes>
             </main>
         </>
