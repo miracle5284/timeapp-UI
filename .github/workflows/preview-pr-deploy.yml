@@ -91,7 +91,7 @@ jobs:
             --name ${{ steps.vars.outputs.app }} \
             --resource-group ${{ secrets.AZURE_RG }}
 
-      - name: Update ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS in Vault
+      - name: Update ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS and FRONTEND_URL in Vault
         run: |
           APP_URL="https://${{ steps.vars.outputs.app }}.azurewebsites.net"
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
@@ -101,6 +101,9 @@ jobs:
 
           echo "Fetching existing CORS-ALLOWED-ORIGINS..."
           EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
+          
+          echo "Fetching existing FRONTEND-URL..."
+          EXISTING_FRONTEND_URL=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "FRONTEND-URL" --query "value" -o tsv)
 
           echo "Updating ALLOWED_HOSTS..."
           if [[ "$EXISTING_ALLOWED" == *"$APP_URL"* ]]; then
@@ -118,6 +121,15 @@ jobs:
           else
             UPDATED_CORS="${EXISTING_CORS:+$EXISTING_CORS,}$APP_URL"
             az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --value "$UPDATED_CORS"
+          fi
+          
+          echo "Updating FRONTEND-URL..."
+          if [[ "$EXISTING_FRONTEND_URL" == *"$APP_URL"* ]]; then
+            echo "Already present, skipping."
+            UPDATED_FRONTEND_URL="$EXISTING_FRONTEND_URL"
+          else
+            UPDATED_FRONTEND_URL="${EXISTING_FRONTEND_URL:+$EXISTING_FRONTEND_URL,}$APP_URL"
+            az keyvault secret set --vault-name "$VAULT_NAME" --name "FRONTEND_URL" --value "$UPDATED_FRONTEND_URL"
           fi
 
       - name: Update backend Container App env vars

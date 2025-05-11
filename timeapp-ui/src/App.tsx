@@ -12,7 +12,7 @@ function App() {
                 <Routes>
                     <Route path="/" element={<CountDown />} />
                     <Route path="/countdown" element={<CountDown />} />
-                    <Route path="/stopwatch" element={<Stopwatch />} />
+                    {/*<Route path="/stopwatch" element={<Stopwatch />} />*/}
                     <Route path="/oauth/popup" element={<OAuthPopup />} />
                 </Routes>
             </main>

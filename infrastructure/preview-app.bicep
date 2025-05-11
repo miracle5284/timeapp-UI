@@ -5,7 +5,6 @@ param registryUrl string
 param acrUsername string
 @secure()
 param acrPassword string
-param backendUrl string
 
 resource plan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appServicePlan
