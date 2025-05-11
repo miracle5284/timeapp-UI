@@ -3,7 +3,10 @@ FROM node:23-alpine as build
 WORKDIR /app
 COPY timeapp-ui ./timeapp-ui
 WORKDIR /app/timeapp-ui
+
 RUN npm ci
+ARG BACKEND_URL
+ENV BACKEND_APP_URL=$BACKEND_URL
 RUN npm run build
 
 # Serve stage

@@ -15,6 +15,8 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: preview
 
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +26,14 @@ jobs:
         run: |
           echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
           echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
+          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
+          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
 
       - name: Build & Push Docker Image
         run: |
-          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          docker build \
+            --build-arg BACKEND_URL=${{ steps.vars.outputs.backend_url }} \
+            -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
           echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
           docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
@@ -35,13 +41,6 @@ jobs:
         uses: azure/login@v2.2.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Get Backend URL from Container App Secrets
-        id: get-backend-url
-        run: |
-          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
-
-          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
 
       - name: Delete existing app/plan if already present
         run: |
@@ -83,8 +82,7 @@ jobs:
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
-              acrPassword=${{ secrets.ACR_PASSWORD }} \
-              backendUrl=${{ steps.get-backend-url.outputs.backend_url }}
+              acrPassword=${{ secrets.ACR_PASSWORD }} 
 
       - name: Enable Continuous Deployment
         run: |

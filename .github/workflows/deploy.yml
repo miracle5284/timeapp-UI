@@ -29,12 +29,20 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Get BACKEND_API_URL_PROD from App Settings
+        id: get-backend-url
+        run: |
+          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
+          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
+
       - name: Build and push container image
         uses: docker/build-push-action@v5
         with:
           push: true
           tags: ${{ secrets.REGISTRY_NAME }}/chrona-frontend:latest
           file: ./Dockerfile
+          build-args: |
+            BACKEND_URL=${{ steps.get-backend-url.outputs.backend_url }}
 
   deploy:
     permissions:
@@ -50,21 +58,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get BACKEND_API_URL_PROD from App Settings
-        id: get-backend-url
-        run: |
-          VALUE=$(az webapp config appsettings list \
-            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
-            --resource-group "${{ secrets.AZURE_RG }}" \
-            --query "[?name=='BACKEND_API_URL_PROD'].value" -o tsv)
-          echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
-
-      - name: Inject BACKEND_API_URL to App
-        run: |
-          az webapp config appsettings set \
-            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
-            --resource-group "${{ secrets.AZURE_RG }}" \
-            --settings BACKEND_API_URL=${{ steps.get-backend-url.outputs.backend_url }}
+#      - name: Inject BACKEND_API_URL to App
+#        run: |
+#          az webapp config appsettings set \
+#            --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+#            --resource-group "${{ secrets.AZURE_RG }}" \
+#            --settings BACKEND_APP_URL=${{ steps.get-backend-url.outputs.backend_url }}
 
       - name: Set Container Settings + Enable CD
         run: |

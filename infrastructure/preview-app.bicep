@@ -45,10 +45,6 @@ resource app 'Microsoft.Web/sites@2023-01-01' = {
           name: 'DOCKER_REGISTRY_SERVER_PASSWORD'
           value: acrPassword
         }
-        {
-          name: 'BACKEND_API_URL'
-          value: backendUrl
-        }
       ]
     }
     httpsOnly: true
