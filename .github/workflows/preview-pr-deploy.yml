@@ -43,11 +43,11 @@ jobs:
           docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Delete existing app/plan if already present
+        env:
+          APP: ${{ steps.vars.outputs.app }}
+          PLAN: ${{ steps.vars.outputs.plan }}
+          RG: ${{ secrets.AZURE_RG }}
         run: |
-          APP=${{ steps.vars.outputs.app }}
-          PLAN=${{ steps.vars.outputs.plan }}
-          RG=${{ secrets.AZURE_RG }}
-
           echo "🧹 Checking for existing app: $APP"
           if az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
             az webapp delete --name "$APP" --resource-group "$RG"
