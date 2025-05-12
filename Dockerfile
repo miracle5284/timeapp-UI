@@ -3,7 +3,10 @@ FROM node:23-alpine as build
 WORKDIR /app
 COPY timeapp-ui ./timeapp-ui
 WORKDIR /app/timeapp-ui
+
 RUN npm ci
+ARG BACKEND_URL
+ENV BACKEND_APP_URL=$BACKEND_URL
 RUN npm run build
 
 # Serve stage
@@ -16,8 +19,8 @@ RUN mkdir -p /app/www
 
 COPY --from=build /app/timeapp-ui/dist /app/www
 COPY nginx/default.conf /etc/nginx/templates/default.conf.template
-COPY timeapp-ui/env.sh /docker-entrypoint.d/env.sh
-RUN chmod +x /docker-entrypoint.d/env.sh
+#COPY timeapp-ui/env.sh /docker-entrypoint.d/env.sh
+#RUN chmod +x /docker-entrypoint.d/env.sh
 
 # Set correct permissions
 RUN chown -R webuser:webuser /app/www && \

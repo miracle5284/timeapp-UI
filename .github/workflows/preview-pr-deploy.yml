@@ -15,42 +15,39 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: preview
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set variables
-        id: vars
-        run: |
-          echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
-          echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
-
-      - name: Build & Push Docker Image
-        run: |
-          docker build -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
-          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
-          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
       - name: Azure Login
         uses: azure/login@v2.2.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get Backend URL from App Settings
-        id: get-backend-url
+      - name: Set variables
+        id: vars
         run: |
-          VALUE=$(az webapp config appsettings list \
-            --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-            --resource-group ${{ secrets.AZURE_RG }} \
-            --query "[?name=='BACKEND_API_URL_DEV'].value" -o tsv)
+          echo "app=pr-${{ github.event.number }}-chrona-frontend" >> $GITHUB_OUTPUT
+          echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
+          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
           echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
 
-      - name: Delete existing app/plan if already present
+      - name: Build & Push Docker Image
         run: |
-          APP=${{ steps.vars.outputs.app }}
-          PLAN=${{ steps.vars.outputs.plan }}
-          RG=${{ secrets.AZURE_RG }}
+          docker build \
+            --build-arg BACKEND_URL=${{ steps.vars.outputs.backend_url }} \
+            -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+          docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
 
+      - name: Delete existing app/plan if already present
+        env:
+          APP: ${{ steps.vars.outputs.app }}
+          PLAN: ${{ steps.vars.outputs.plan }}
+          RG: ${{ secrets.AZURE_RG }}
+        run: |
           echo "🧹 Checking for existing app: $APP"
           if az webapp show --name "$APP" --resource-group "$RG" &>/dev/null; then
             az webapp delete --name "$APP" --resource-group "$RG"
@@ -74,19 +71,63 @@ jobs:
             echo "No plan to delete."
           fi
 
-      - name: Deploy Infrastructure with Bicep
+      - name: Deploy App
+        id: deploy_app
         run: |
+          set +e  # Don't exit on first error
+
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+      
+          echo "🧹 Deploying app with plan: $PLAN"
+
           az deployment group create \
-            --resource-group ${{ secrets.AZURE_RG }} \
+            --resource-group "$RG" \
             --template-file infrastructure/preview-app.bicep \
             --parameters \
-              appServiceName=${{ steps.vars.outputs.app }} \
-              appServicePlan=${{ steps.vars.outputs.plan }} \
+              appServiceName=$APP \
+              appServicePlan=$PLAN \
+              useExistingPlan=false \
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
-              acrPassword=${{ secrets.ACR_PASSWORD }} \
-              backendUrl=${{ steps.get-backend-url.outputs.backend_url }}
+              acrPassword=${{ secrets.ACR_PASSWORD }} > deploy_output.txt 2>&1
+
+          status=$?
+          output=$(cat deploy_output.txt)
+
+          if [[ $status -ne 0 && "$output" == *"No available instances to satisfy this request"* ]]; then
+            echo "❌ Capacity issue detected. Retrying with fallback plan chronaplan-pr-1..."
+
+            PLAN="chrona-plan-pr-1"
+
+            az deployment group create \
+              --resource-group "$RG" \
+              --template-file infrastructure/preview-app.bicep \
+              --parameters \
+                appServiceName=$APP \
+                appServicePlan=$PLAN \
+                useExistingPlan=true \
+                imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
+                registryUrl=https://${{ secrets.REGISTRY_NAME }} \
+                acrUsername=${{ secrets.ACR_USERNAME }} \
+                acrPassword=${{ secrets.ACR_PASSWORD }}
+
+            if [ $? -ne 0 ]; then
+              echo "❌ Fallback deployment also failed."
+              exit 1
+            else
+              echo "✅ Fallback deployment succeeded with $PLAN."
+            fi
+          elif [[ $status -ne 0 ]]; then
+            echo "❌ Deployment failed with unknown error:"
+            echo "$output"
+            exit 1
+          else
+            echo "✅ Initial deployment succeeded."
+          fi
+
 
       - name: Enable Continuous Deployment
         run: |
@@ -95,31 +136,59 @@ jobs:
             --name ${{ steps.vars.outputs.app }} \
             --resource-group ${{ secrets.AZURE_RG }}
 
-      - name: Update backend PRODUCTION_SERVERS
+      - name: Update ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS and FRONTEND_URL in Vault
         run: |
-          APP=${{ steps.vars.outputs.app }}
-          BACKEND_APP=${{ secrets.BACKEND_APP_NAME }}
-          BACKEND_RG=${{ secrets.BACKEND_RG }}
-          SERVER_URL="https://${APP}.azurewebsites.net"
-          
-          echo "🔍 Fetching existing PRODUCTION_SERVERS..."
-          EXISTING=$(az webapp config appsettings list \
-            --name "$BACKEND_APP" \
-            --resource-group "$BACKEND_RG" \
-            --query "[?name=='PRODUCTION_SERVERS'].value" -o tsv)
+          APP_URL="https://${{ steps.vars.outputs.app }}.azurewebsites.net"
+          APP_HOST="${{ steps.vars.outputs.app }}.azurewebsites.net"
+          VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
-          echo "✅ Current: $EXISTING"
+          echo "Fetching existing ALLOWED-HOSTS..."
+          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+
+          echo "Fetching existing CORS-ALLOWED-ORIGINS..."
+          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
           
-          if [[ "$EXISTING" == *"$SERVER_URL"* ]]; then
-            echo "✅ URL already present in PRODUCTION_SERVERS. Skipping update."
+          echo "Fetching existing FRONTEND-URL..."
+          EXISTING_FRONTEND_URL=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "FRONTEND-URL" --query "value" -o tsv)
+
+          echo "Updating ALLOWED_HOSTS..."
+          if [[ "$EXISTING_ALLOWED" == *"$APP_HOST"* ]]; then
+            echo "Already present, skipping."
+            UPDATED_ALLOWED="$EXISTING_ALLOWED"
           else
-            echo "📝 Appending new URL..."
-            UPDATED="${EXISTING:+$EXISTING, }$SERVER_URL"
-            az webapp config appsettings set \
-              --name "$BACKEND_APP" \
-              --resource-group "$BACKEND_RG" \
-              --settings "PRODUCTION_SERVERS=$UPDATED"
+            UPDATED_ALLOWED="${EXISTING_ALLOWED:+$EXISTING_ALLOWED,}$APP_HOST"
+            az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --value "$UPDATED_ALLOWED"
           fi
+
+          echo "Updating CORS_ALLOWED_ORIGINS..."
+          if [[ "$EXISTING_CORS" == *"$APP_URL"* ]]; then
+            echo "Already present, skipping."
+            UPDATED_CORS="$EXISTING_CORS"
+          else
+            UPDATED_CORS="${EXISTING_CORS:+$EXISTING_CORS,}$APP_URL"
+            az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --value "$UPDATED_CORS"
+          fi
+          
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "FRONTEND-URL" --value "$APP_URL"
+
+      - name: Update backend Container App env vars
+        run: |
+          BACKEND_APP=${{ secrets.BACKEND_CONTAINER_APP_NAME }}
+          RG=${{ secrets.AZURE_RG }}
+          VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
+
+          echo "Fetching updated ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS from Vault..."
+          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
+          NEW_FRONTEND=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "FRONTEND-URL" --query "value" -o tsv)
+
+          echo "Updating backend container app env vars..."
+          
+          az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
+            --secrets allowed-hosts="$NEW_ALLOWED" \
+            --secrets cors-allowed-origins="$NEW_CORS" \
+            --secrets frontend-url="$NEW_FRONTEND"
+        
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
@@ -145,11 +214,55 @@ jobs:
 
       - name: Cleanup App Service and Plan
         run: |
-          APP=pr-${{ github.event.number }}-chrona-frontend
-          PLAN=pr-${{ github.event.number }}-chrona-plan
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+          
+          echo "🧹 Checking for app: $APP"
+          
+          if [ "$PLAN" != "chronaplan-pr-1" ]; then
+            echo "🧹 Deleting App and App Service Plan: $PLAN"
+          
+            # Delete both App and App Service Plan
+            az webapp delete --name "$APP" --resource-group "$RG"
+            az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes
+            echo "✅ App and Service Plan deleted."
+          else
+            echo "⚠️ Skipping Service Plan Deletion for $PLAN"
+          
+            # Only delete the app, keep the plan
+            az webapp delete --name "$APP" --resource-group "$RG"
+            echo "✅ App deleted. Service Plan $PLAN retained."
+          fi
 
-          echo "🧹 Deleting Web App: $APP"
-          az webapp delete --name "$APP" --resource-group ${{ secrets.AZURE_RG }} || echo "App may not exist."
+      - name: Remove Preview URL from ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS
+        run: |
+          APP_URL="https://pr-${{ github.event.number }}-chrona-frontend.azurewebsites.net"
+          VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
-          echo "🧹 Deleting App Service Plan: $PLAN"
-          az appservice plan delete --name "$PLAN" --resource-group ${{ secrets.AZURE_RG }} --yes || echo "Plan may not exist."
+          echo "Fetching current ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS..."
+          EXISTING_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          EXISTING_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
+
+          echo "Removing APP_URL from ALLOWED_HOSTS..."
+          UPDATED_ALLOWED=$(echo "$EXISTING_ALLOWED" | sed "s#${APP_URL},*##g" | sed 's#,,#,#g' | sed 's#^,\|,$##g')
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --value "$UPDATED_ALLOWED"
+
+          echo "Removing APP_URL from CORS_ALLOWED_ORIGINS..."
+          UPDATED_CORS=$(echo "$EXISTING_CORS" | sed "s#${APP_URL},*##g" | sed 's#,,#,#g' | sed 's#^,\|,$##g')
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --value "$UPDATED_CORS"
+
+      - name: Update backend Container App env vars
+        run: |
+          BACKEND_APP=${{ secrets.BACKEND_CONTAINER_APP_NAME }}
+          RG=${{ secrets.AZURE_RG }}
+          VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
+
+          echo "Fetching updated ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS..."
+          NEW_ALLOWED=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --query "value" -o tsv)
+          NEW_CORS=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "CORS-ALLOWED-ORIGINS" --query "value" -o tsv)
+
+          echo "Updating backend container app env vars..."
+          az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
+            --secrets allowed-hosts="$NEW_ALLOWED" \
+            --secrets cors-allowed-origins="$NEW_CORS"

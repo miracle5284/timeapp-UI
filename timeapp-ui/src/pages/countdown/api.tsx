@@ -1,5 +1,5 @@
-import axios from "axios";
-import { BACKEND_URL } from "../../../constant.ts";
+import API from "../../../lib/api.ts";
+import {ICountdownResponse} from "./dtypes.tsx";
 
 /**
  * Fetches the current countdown state from the backend
@@ -7,32 +7,37 @@ import { BACKEND_URL } from "../../../constant.ts";
  * @returns {Promise<Object>} Countdown state including duration, active flag, etc.
  */
 export const getCountdown = async () => {
-    const resp = await axios.get(`${BACKEND_URL}/v2/countdown/`, {
-        withCredentials: true
-    });
+    const resp = await API.get(`/v2/countdown/`);
     return resp.data;
 };
 
 /**
  * Starts or resumes a countdown with a specified duration
- * @param {number} duration - Current duration (e.g., resumed or modified)
- * @param {number} setDuration - Initial duration originally set by user
  * @returns {Promise<Object>} Server confirmation response
+ * @param id
+ * @param name
+ * @param durationSeconds
+ * @param timestamp
  */
-export const startCountdown = async (duration: number, setDuration: number) => {
-    const resp = await axios.post(`${BACKEND_URL}/v2/countdown/`, { duration, setDuration }, {
-        withCredentials: true
-    });
+export const startCountdown = async (
+    id: string, name: string, durationSeconds: number, timestamp: string): Promise<ICountdownResponse> => {
+    const payload = { name: name || "Test 1", durationSeconds, timestamp}
+    const resp = await (id ? API.patch(`/v2/countdown/${id}/start/`, payload) :
+        API.post(`/v2/countdown/`, payload))
     return resp.data;
 };
 
 /**
  * Pauses the currently active countdown timer
  * @returns {Promise<Object>} Server confirmation response
+ * @param id
+ * @param remainingDurationSeconds
+ * @param timestamp
  */
-export const pauseCountdown = async () => {
-    const resp = await axios.put(`${BACKEND_URL}/v2/countdown/`, {}, {
-        withCredentials: true
+export const pauseCountdown = async (id: string | null, remainingDurationSeconds: number,
+                                     timestamp: string): Promise<ICountdownResponse> => {
+    const resp = await API.patch(`/v2/countdown/${id}/pause/`, {
+        remainingDurationSeconds, timestamp
     });
     return resp.data;
 };
@@ -40,10 +45,20 @@ export const pauseCountdown = async () => {
 /**
  * Resets the countdown timer to the originally set duration
  * @returns {Promise<Object>} Server confirmation response
+ * @param id
  */
-export const resetCountdown = async () => {
-    const resp = await axios.delete(`${BACKEND_URL}/v2/countdown/`, {
-        withCredentials: true
-    });
+export const resetCountdown = async (id : string): Promise<ICountdownResponse> => {
+    const resp = await API.patch(`v2/countdown/${id}/reset/`, {timestamp: new Date().toISOString()});
+    return resp.data;
+};
+
+/**
+ * Mark the countdown timer as complete
+ * @returns {Promise<Object>} Server confirmation response
+ * @param id
+ * @param timestamp
+ */
+export const completeCountdown = async (id : string, timestamp: string): Promise<ICountdownResponse> => {
+    const resp = await API.patch(`v2/countdown/${id}/completed/`, { timestamp });
     return resp.data;
 };
