@@ -74,64 +74,56 @@ jobs:
       - name: Deploy App
         id: deploy_app
         run: |
+          set +e  # Don't exit on first error
+
           APP=${{ steps.vars.outputs.app }}
           PLAN=${{ steps.vars.outputs.plan }}
           RG=${{ secrets.AZURE_RG }}
       
           echo "🧹 Deploying app with plan: $PLAN"
-          
-          # Try initial deployment
-          deployment_output=$(az deployment group create \
+
+          az deployment group create \
             --resource-group "$RG" \
             --template-file infrastructure/preview-app.bicep \
             --parameters \
-              appServiceName=${{ steps.vars.outputs.app }} \
-              appServicePlan=${{ steps.vars.outputs.plan }} \
+              appServiceName=$APP \
+              appServicePlan=$PLAN \
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
-              acrPassword=${{ secrets.ACR_PASSWORD }} \
-            --output json)
+              acrPassword=${{ secrets.ACR_PASSWORD }} > deploy_output.txt 2>&1
 
-          # Check if deployment failed due to capacity conflict
-          deployment_status=$(echo "$deployment_output" | grep -o '"status":"[A-Za-z]*"' | awk -F ':"' '{print $2}' | tr -d '"')
+          status=$?
+          output=$(cat deploy_output.txt)
 
-          if [ "$deployment_status" == "Failed" ]; then
-            # Extract detailed error message
-            error_message=$(echo "$deployment_output" | grep -o '"message":"[^"]*"' | awk -F ':"' '{print $2}' | tr -d '"')
+          if [[ $status -ne 0 && "$output" == *"No available instances to satisfy this request"* ]]; then
+            echo "❌ Capacity issue detected. Retrying with fallback plan chronaplan-pr-1..."
 
-            # If it's a capacity issue, retry with different plan
-            if [[ "$error_message" == *"No available instances to satisfy this request"* ]]; then
-              echo "❌ Deployment failed due to capacity issue. Retrying with chronaplan-pr-1..."
+            PLAN="chronaplan-pr-1"
 
-              PLAN="chronaplan-pr-1"  # Switch to the fallback plan
+            az deployment group create \
+              --resource-group "$RG" \
+              --template-file infrastructure/preview-app.bicep \
+              --parameters \
+                appServiceName=$APP \
+                appServicePlan=$PLAN \
+                imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
+                registryUrl=https://${{ secrets.REGISTRY_NAME }} \
+                acrUsername=${{ secrets.ACR_USERNAME }} \
+                acrPassword=${{ secrets.ACR_PASSWORD }}
 
-              deployment_output=$(az deployment group create \
-                --resource-group "$RG" \
-                --template-file infrastructure/preview-app.bicep \
-                --parameters \
-                  appServiceName=$APP \
-                  appServicePlan=$PLAN \
-                  imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
-                  registryUrl=https://${{ secrets.REGISTRY_NAME }} \
-                  acrUsername=${{ secrets.ACR_USERNAME }} \
-                  acrPassword=${{ secrets.ACR_PASSWORD }} \
-                --output json)
-
-              deployment_status=$(echo "$deployment_output" | grep -o '"status":"[A-Za-z]*"' | awk -F ':"' '{print $2}' | tr -d '"')
-
-              if [ "$deployment_status" == "Succeeded" ]; then
-                echo "✅ Deployment with $PLAN succeeded!"
-              else
-                echo "❌ Deployment with fallback plan chronaplan-pr-1 also failed!"
-                exit 1
-              fi
-            else
-              echo "❌ Deployment failed for a reason other than capacity issue: $error_message"
+            if [ $? -ne 0 ]; then
+              echo "❌ Fallback deployment also failed."
               exit 1
+            else
+              echo "✅ Fallback deployment succeeded with $PLAN."
             fi
+          elif [[ $status -ne 0 ]]; then
+            echo "❌ Deployment failed with unknown error:"
+            echo "$output"
+            exit 1
           else
-            echo "✅ Deployment succeeded!"
+            echo "✅ Initial deployment succeeded."
           fi
 
 
