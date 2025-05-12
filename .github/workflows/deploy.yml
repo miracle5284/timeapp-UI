@@ -1,4 +1,4 @@
-name: Build and deploy Time App
+name: Build and deploy Chrona UI
 
 on:
   push:
