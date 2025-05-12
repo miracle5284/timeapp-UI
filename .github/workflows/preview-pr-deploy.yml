@@ -100,7 +100,7 @@ jobs:
           if [[ $status -ne 0 && "$output" == *"No available instances to satisfy this request"* ]]; then
             echo "❌ Capacity issue detected. Retrying with fallback plan chronaplan-pr-1..."
 
-            PLAN="chronaplan-pr-1"
+            PLAN="chrona-plan-pr-1"
 
             az deployment group create \
               --resource-group "$RG" \

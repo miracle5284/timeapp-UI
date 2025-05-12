@@ -23,6 +23,7 @@ param registryUrl string
 @description('ACR username')
 param acrUsername string
 
+@secure()
 @description('ACR password')
 param acrPassword string
 
@@ -52,7 +53,7 @@ resource webApp 'Microsoft.Web/sites@2022-03-01' = {
   properties: {
     serverFarmId: useExistingPlan ? existingPlan.id : newPlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|' + imageName
+      linuxFxVersion: 'DOCKER|${imageName}'
       appSettings: [
         {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
