@@ -29,16 +29,9 @@ Chrona integrates tightly with backend APIs and optionally leverages the **Timer
 - **Axios** (HTTP requests)
 - **Radix UI** (Accessible components)
 - **Custom Browser Extension Integration** (Timer Keeper)
-- **Azure Container Apps** (Dockerized SPA deployment)
+- **Azure Service Apps** (Dockerized SPA deployment)
 - **Vercel / Netlify** (Static hosting)
 - **GitHub Actions** (CI/CD pipelines)
-
----
-
-## 🔄 Live Demo
-
-- **Production**: [https://chrona.blueprime.app](https://chrona.blueprime.app)
-- **Staging**: [https://staging-timer-app-slim.azurewebsites.net](https://staging-timer-app-slim.azurewebsites.net)
 
 ---
 
