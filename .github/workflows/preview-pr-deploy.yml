@@ -139,6 +139,7 @@ jobs:
       - name: Update ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS and FRONTEND_URL in Vault
         run: |
           APP_URL="https://${{ steps.vars.outputs.app }}.azurewebsites.net"
+          APP_HOST=${APP_URL#*://}
           VAULT_NAME=${{ secrets.KEY_VAULT_NAME }}
 
           echo "Fetching existing ALLOWED-HOSTS..."
@@ -151,11 +152,11 @@ jobs:
           EXISTING_FRONTEND_URL=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "FRONTEND-URL" --query "value" -o tsv)
 
           echo "Updating ALLOWED_HOSTS..."
-          if [[ "$EXISTING_ALLOWED" == *"$APP_URL"* ]]; then
+          if [[ "$EXISTING_ALLOWED" == *"$APP_HOST"* ]]; then
             echo "Already present, skipping."
             UPDATED_ALLOWED="$EXISTING_ALLOWED"
           else
-            UPDATED_ALLOWED="${EXISTING_ALLOWED:+$EXISTING_ALLOWED,}$APP_URL"
+            UPDATED_ALLOWED="${EXISTING_ALLOWED:+$EXISTING_ALLOWED,}$APP_HOST"
             az keyvault secret set --vault-name "$VAULT_NAME" --name "ALLOWED-HOSTS" --value "$UPDATED_ALLOWED"
           fi
 
@@ -191,7 +192,10 @@ jobs:
           echo "Updating backend container app env vars..."
           
           az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
-            --secrets "allowed-hosts=$NEW_ALLOWED cors-allowed-origins=$NEW_CORS frontend-url=$NEW_FRONTEND"
+            --secrets allowed-hosts="$NEW_ALLOWED" \
+            --secrets cors-allowed-origins="$NEW_CORS" \
+            --secrets frontend-url="$NEW_FRONTEND"
+        
 
       - name: Comment Preview URL
         uses: actions/github-script@v6
@@ -272,5 +276,7 @@ jobs:
 
           echo "Updating backend container app env vars..."
           az containerapp secret set --name "$BACKEND_APP" --resource-group "$RG" \
-            --secrets "allowed-hosts=$NEW_ALLOWED cors-allowed-origins=$NEW_CORS"
+            --secrets allowed-hosts="$NEW_ALLOWED" \
+            --secrets cors-allowed-origins="$NEW_CORS" \
+            --secrets frontend-url="$NEW_FRONTEND"
 
