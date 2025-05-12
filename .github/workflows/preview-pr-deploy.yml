@@ -71,10 +71,18 @@ jobs:
             echo "No plan to delete."
           fi
 
-      - name: Deploy Infrastructure with Bicep
+      - name: Deploy App
+        id: deploy_app
         run: |
-          az deployment group create \
-            --resource-group ${{ secrets.AZURE_RG }} \
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+      
+          echo "🧹 Deploying app with plan: $PLAN"
+          
+          # Try initial deployment
+          deployment_output=$(az deployment group create \
+            --resource-group "$RG" \
             --template-file infrastructure/preview-app.bicep \
             --parameters \
               appServiceName=${{ steps.vars.outputs.app }} \
@@ -82,7 +90,50 @@ jobs:
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
-              acrPassword=${{ secrets.ACR_PASSWORD }} 
+              acrPassword=${{ secrets.ACR_PASSWORD }} \
+            --output json)
+
+          # Check if deployment failed due to capacity conflict
+          deployment_status=$(echo "$deployment_output" | grep -o '"status":"[A-Za-z]*"' | awk -F ':"' '{print $2}' | tr -d '"')
+
+          if [ "$deployment_status" == "Failed" ]; then
+            # Extract detailed error message
+            error_message=$(echo "$deployment_output" | grep -o '"message":"[^"]*"' | awk -F ':"' '{print $2}' | tr -d '"')
+
+            # If it's a capacity issue, retry with different plan
+            if [[ "$error_message" == *"No available instances to satisfy this request"* ]]; then
+              echo "❌ Deployment failed due to capacity issue. Retrying with chronaplan-pr-1..."
+
+              PLAN="chronaplan-pr-1"  # Switch to the fallback plan
+
+              deployment_output=$(az deployment group create \
+                --resource-group "$RG" \
+                --template-file infrastructure/preview-app.bicep \
+                --parameters \
+                  appServiceName=$APP \
+                  appServicePlan=$PLAN \
+                  imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
+                  registryUrl=https://${{ secrets.REGISTRY_NAME }} \
+                  acrUsername=${{ secrets.ACR_USERNAME }} \
+                  acrPassword=${{ secrets.ACR_PASSWORD }} \
+                --output json)
+
+              deployment_status=$(echo "$deployment_output" | grep -o '"status":"[A-Za-z]*"' | awk -F ':"' '{print $2}' | tr -d '"')
+
+              if [ "$deployment_status" == "Succeeded" ]; then
+                echo "✅ Deployment with $PLAN succeeded!"
+              else
+                echo "❌ Deployment with fallback plan chronaplan-pr-1 also failed!"
+                exit 1
+              fi
+            else
+              echo "❌ Deployment failed for a reason other than capacity issue: $error_message"
+              exit 1
+            fi
+          else
+            echo "✅ Deployment succeeded!"
+          fi
+
 
       - name: Enable Continuous Deployment
         run: |
@@ -171,14 +222,26 @@ jobs:
 
       - name: Cleanup App Service and Plan
         run: |
-          APP=pr-${{ github.event.number }}-chrona-frontend
-          PLAN=pr-${{ github.event.number }}-chrona-plan
-
-          echo "🧹 Deleting Web App: $APP"
-          az webapp delete --name "$APP" --resource-group ${{ secrets.AZURE_RG }} || echo "App may not exist."
-
-          echo "🧹 Deleting App Service Plan: $PLAN"
-          az appservice plan delete --name "$PLAN" --resource-group ${{ secrets.AZURE_RG }} --yes || echo "Plan may not exist."
+          APP=${{ steps.vars.outputs.app }}
+          PLAN=${{ steps.vars.outputs.plan }}
+          RG=${{ secrets.AZURE_RG }}
+          
+          echo "🧹 Checking for app: $APP"
+          
+          if [ "$PLAN" != "chronaplan-pr-1" ]; then
+            echo "🧹 Deleting App and App Service Plan: $PLAN"
+          
+            # Delete both App and App Service Plan
+            az webapp delete --name "$APP" --resource-group "$RG"
+            az appservice plan delete --name "$PLAN" --resource-group "$RG" --yes
+            echo "✅ App and Service Plan deleted."
+          else
+            echo "⚠️ Skipping Service Plan Deletion for $PLAN"
+          
+            # Only delete the app, keep the plan
+            az webapp delete --name "$APP" --resource-group "$RG"
+            echo "✅ App deleted. Service Plan $PLAN retained."
+          fi
 
       - name: Remove Preview URL from ALLOWED_HOSTS and CORS_ALLOWED_ORIGINS
         run: |
