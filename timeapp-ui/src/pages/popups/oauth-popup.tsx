@@ -29,7 +29,7 @@ export default function OAuthPopup() {
 
     // Query to retrieve OAuth tokens after successful provider login
     const { data, error, isLoading } = useQuery<PopupTokens, Error>({
-        queryKey: ["oauthPopupTokens"],
+        queryKey: [OAUTH_STORAGE_KEY],
         queryFn: () =>
             axios
                 .get<PopupTokens>(`${BACKEND_URL}${OAUTH_POPUP_TOKENS_ENDPOINT}`, {
@@ -41,6 +41,9 @@ export default function OAuthPopup() {
     });
 
     useEffect(() => {
+
+        if (!data) return;
+
         const payload: PopupTokens = data ?? { success: false };
 
         // Store tokens or failure status in localStorage to be picked up by parent window
