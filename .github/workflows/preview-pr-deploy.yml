@@ -88,6 +88,7 @@ jobs:
             --parameters \
               appServiceName=$APP \
               appServicePlan=$PLAN \
+              useExistingPlan=false \
               imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
               registryUrl=https://${{ secrets.REGISTRY_NAME }} \
               acrUsername=${{ secrets.ACR_USERNAME }} \
@@ -107,6 +108,7 @@ jobs:
               --parameters \
                 appServiceName=$APP \
                 appServicePlan=$PLAN \
+                useExistingPlan=true \
                 imageName=${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} \
                 registryUrl=https://${{ secrets.REGISTRY_NAME }} \
                 acrUsername=${{ secrets.ACR_USERNAME }} \
