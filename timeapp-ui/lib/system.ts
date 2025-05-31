@@ -1,3 +1,7 @@
+import  API  from './api'
+import { PUSH_SERVICE_NOTIFICATION_ENDPOINT, BACKEND_URL} from "../constant.ts";
+import {PushSubscriptionPayload} from "../types/push.ts";
+
 type NotificationOptions = {
     notificationPermission: boolean;           // Whether the user has granted notification permission
     title: string;                             // Notification title
@@ -37,3 +41,7 @@ export const sendNotification = ({
         navigator.vibrate(vibrationPattern || [200, 100, 200]);
     }
 };
+
+export async function sendSubscriptionToServer(payload: PushSubscriptionPayload) {
+    return API.post(`${BACKEND_URL}${PUSH_SERVICE_NOTIFICATION_ENDPOINT}`, payload)
+}

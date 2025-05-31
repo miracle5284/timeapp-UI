@@ -5,6 +5,7 @@ import fs from 'fs';
 import mkcert from 'vite-plugin-mkcert';
 import { fileURLToPath } from 'url';
 import tailwindcss from "@tailwindcss/vite";
+import {VitePWA} from "vite-plugin-pwa";
 
 // Emulate __dirname in ESM
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,7 +16,7 @@ export default defineConfig(({ mode }) => {
     const isLocal = env.LOCAL === 'true';
 
     console.log('isLocal:', isLocal);
-    // for Local development only - we want to servee on https
+    // for Local development only - we want to server on https
     const httpsConfig = isLocal
         ? {
             key: fs.readFileSync(path.join(__dirname, 'certs/chrona-frontend.com-key.pem')),
@@ -27,8 +28,74 @@ export default defineConfig(({ mode }) => {
         plugins: [
             react(),
             tailwindcss(),
-            isLocal && mkcert()
-        ].filter(Boolean),
+            isLocal && mkcert(),
+            VitePWA({
+                //registerType: 'autoUpdate',
+                includeAssets: ['favicon.svg', 'robots.txt', 'assets/*'],
+                manifest: {
+                    name: 'Chrona Time App',
+                    short_name: 'Chrona',
+                    start_url: '/',
+                    display: 'standalone',
+                    background_color: '#ffffff',
+                    theme_color: '#0f172a',
+                    //scope: '/',
+                    icons: [
+                        {
+                            src: '/assets/img/clock_144x144.png',
+                            sizes: '144x144',
+                            type: 'image/png',
+                            purpose: "any"
+                        },
+                        {
+                            src: '/assets/img/clock_512x512.svg',
+                            sizes: '512x512',
+                            type: 'image/svg',
+                            purpose: "any"
+                        },
+                    ],
+                    "screenshots": [
+                        {
+                            "src": "/assets/img/clock_1280x720.svg",
+                            "sizes": "1280x720",
+                            "type": "image/svg",
+                            "form_factor": "wide"
+                        },
+                        {
+                            "src": "/assets/img/clock_375x667.svg",
+                            "sizes": "375x667",
+                            "type": "image/svg",
+                            "form_factor": "narrow"
+                        }
+                    ],
+
+                    // shortcuts: [
+                    //     {
+                    //         name: "Start Timer",
+                    //         url: "/timer/start",
+                    //         icons: [{ src: "/icons/start.png", sizes: "192x192", type: "image/png" }]
+                    //     },
+                    //     {
+                    //         name: "Dashboard",
+                    //         url: "/dashboard",
+                    //         icons: [{ src: "/icons/dashboard.png", sizes: "192x192", type: "image/png" }]
+                    //     }
+                    // ]
+
+                },
+                // srcDir: '',
+                // filename: 'sw.js',
+                // devOptions: {
+                //     enabled: true, // allow in dev
+                //     type: 'module',
+                //     navigateFallback: '/', // disable fallback in dev
+                // },
+                workbox: {
+                    globPatterns: ['**/*.{js,css,html,png,svg,ico,ts,webmanifest}'],
+                    globIgnores: ['**/node_modules/**/*', 'workbox-*.js'],
+                }
+            }),
+        ],//.filter(Boolean),
         server: isLocal
             ? {
                 https: httpsConfig,
@@ -41,6 +108,7 @@ export default defineConfig(({ mode }) => {
             : undefined,
         define: {
             BACKEND_APP_URL: JSON.stringify(env.BACKEND_URL),
+            VAPID_PUBLIC_KEY: JSON.stringify(env.VPUBLIC_KEY),
         },
     };
 });

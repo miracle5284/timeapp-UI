@@ -3,6 +3,31 @@ import { Routes, Route } from "react-router-dom"
 import CountDown from "./pages/countdown";
 import Navbar from "./components/navbar.tsx";
 import OAuthPopup from "./pages/popups/oauth-popup.tsx";
+// import { registerSW } from 'virtual:pwa-register';
+import {NotificationPermissionPrompt} from "./components/permission-prompt.tsx";
+
+// registerSW({
+//     onNeedRefresh() {
+//         console.log('Chrona is ready for online use;')
+//
+//     },
+//     onOfflineReady() {
+//         console.log('Chrona is ready for offline use;')
+//     }
+// })
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+        .register('/sw.js', {
+            scope: '/'
+        })
+        .then(registration => {
+            console.log('Service worker registered:', registration);
+        })
+        .catch(error => {
+            console.error('Service worker registration failed:', error);
+        });
+}
 
 function App() {
     return (
@@ -16,6 +41,7 @@ function App() {
                     <Route path="/oauth/popup" element={<OAuthPopup />} />
                 </Routes>
             </main>
+            <NotificationPermissionPrompt />
         </>
     )
 }
