@@ -43,6 +43,18 @@ self.addEventListener("push", function (event) {
     );
 });
 
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'PING') {
+        console.log('[SW] 🔄 Received PING from client');
+    }
+});
+
+self.addEventListener('fetch', (event) => {
+    if (event.request.url.includes("/sw-ping")) {
+        console.log('[SW] 🔄 Ping fetch received');
+    }
+})
+
 self.addEventListener("notificationclick", function (event) {
     console.log("[SW] Notification clicked:", event.notification);
 

@@ -21,8 +21,18 @@ if ('serviceWorker' in navigator) {
         .register('/sw.js', {
             scope: '/'
         })
-        .then(registration => {
+        .then(async registration => {
             console.log('Service worker registered:', registration);
+
+            const swReady = await navigator.serviceWorker.ready;
+
+            console.log('[SW] Ready', swReady)
+
+            if (swReady.active) {
+                swReady.active.postMessage({type: 'PING'});
+            }
+
+            fetch('/sw-ping?_=' + Date.now()).catch(() => {});
         })
         .catch(error => {
             console.error('Service worker registration failed:', error);
