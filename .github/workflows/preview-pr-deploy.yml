@@ -33,11 +33,14 @@ jobs:
           echo "plan=pr-${{ github.event.number }}-chrona-plan" >> $GITHUB_OUTPUT
           VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "BASE-URL" --query "value" -o tsv)
           echo "backend_url=$VALUE" >> $GITHUB_OUTPUT
+          VALUE=$(az keyvault secret show --vault-name ${{ secrets.KEY_VAULT_NAME }} --name "VPUBLIC-KEY" --query "value" -o tsv)
+          echo "vpublic_key=$VALUE" >> $GITHUB_OUTPUT
 
       - name: Build & Push Docker Image
         run: |
           docker build \
             --build-arg BACKEND_URL=${{ steps.vars.outputs.backend_url }} \
+            --build-arg VPUBLIC_KEY=${{ steps.vars.outputs.vpublic_key }} \
             -t ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }} .
           echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.REGISTRY_NAME }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
           docker push ${{ secrets.REGISTRY_NAME }}/chrona-frontend:pr-${{ github.event.number }}
