@@ -3,6 +3,7 @@ import API from "../../../lib/api.ts";
 import { useQuery } from "@tanstack/react-query";
 import { AuthContext, User } from "./user-context.ts";
 import {setRefetch} from "../../../lib/api";
+import {setupPush} from "../../../lib/push";
 
 // Expected API response format for the user query
 interface UserResponse {
@@ -33,6 +34,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setRefreshToken(refresh);
         API.defaults.headers.common["Authorization"] = `Bearer ${access}`;
         refetch(); // fetch user data after setting token
+
+        // TODO: move push setup to settings page.
+        setupPush();
     };
 
     // Handles logout: removes tokens and auth header
