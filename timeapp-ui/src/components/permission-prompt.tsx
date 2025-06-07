@@ -1,4 +1,4 @@
-import { useNotificationPermission } from '../../lib/hooks/notification-permission';
+import { useNotificationPermission } from '../../lib';
 import { useState } from "react";
 
 /**

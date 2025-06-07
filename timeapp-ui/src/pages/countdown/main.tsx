@@ -48,13 +48,12 @@ function CountDownComponent() {
     const [timerIndex, setTimerIndex] = useState<number | null>(null); // For tracking which digit is being changed
     const [triggerCompletion, setTriggerCompletion] = useState(false); // For tracking which digit is being changed
     const [isHover, setIsHover] = useState<HoverTarget>([null, null]); // For tracking hovered digit
-    const [notificationPermission, setNotificationPermission] = useState(false); // Notification toggle
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);  // Interval handler
     const endTimeRef = useRef<number>(0);                    // Reference to target end time
     const audioRef = useRef<HTMLAudioElement | null>(null);  // Alarm sound reference
 
-    useNotificationPermission({ permissionHook: [notificationPermission, setNotificationPermission] });
+    const {isGranted: notificationPermissionGranted} = useNotificationPermission();
 
     /**
      * Converts seconds to hours/minutes/seconds digit arrays for display
@@ -111,7 +110,7 @@ function CountDownComponent() {
         console.log(timerIndex)
         if (countdownData.timeUp) {
             sendNotification({
-                notificationPermission,
+                notificationPermissionGranted,
                 title: "Timer Up",
                 body: `Your ${countdownData.durationSeconds} seconds has finished`,
                 requireInteraction: true,
