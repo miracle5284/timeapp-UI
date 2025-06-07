@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
             isLocal && mkcert(),
             VitePWA({
                 //registerType: 'autoUpdate',
-                includeAssets: ['favicon.svg', 'robots.txt', 'assets/*'],
+                includeAssets: ['favicon.svg', 'robots.txt'],
                 manifest: {
                     name: 'Chrona Time App',
                     short_name: 'Chrona',
@@ -93,7 +93,15 @@ export default defineConfig(({ mode }) => {
                 workbox: {
                     globPatterns: ['**/*.{js,css,html,png,svg,ico,ts,webmanifest}'],
                     globIgnores: ['**/node_modules/**/*', 'workbox-*.js'],
-                }
+                    manifestTransforms: [
+                            async (entries) => {
+                                const deduped = entries.filter(
+                                    e => !e.url.includes('?__WB_REVISION__')
+                                );
+                                return { manifest: deduped };
+                            }
+                        ]
+                    }
             }),
         ],//.filter(Boolean),
         server: isLocal
