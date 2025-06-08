@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
             tailwindcss(),
             isLocal && mkcert(),
             VitePWA({
-                //registerType: 'autoUpdate',
+                registerType: 'autoUpdate',
                 includeAssets: ['favicon.svg', 'robots.txt'],
                 manifest: {
                     name: 'Chrona Time App',
@@ -90,6 +90,13 @@ export default defineConfig(({ mode }) => {
                 //     type: 'module',
                 //     navigateFallback: '/', // disable fallback in dev
                 // },
+                // injectManifest: {
+                //     swSrc: path.resolve(__dirname, 'src/sw.js'),
+                //     swDest: 'sw.js',
+                // },
+                strategies: "injectManifest",
+                srcDir: "src",
+                filename: "sw.js",
                 workbox: {
                     globPatterns: ['**/*.{js,css,html,png,svg,ico,ts,webmanifest}'],
                     globIgnores: ['**/node_modules/**/*', 'workbox-*.js'],

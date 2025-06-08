@@ -1,3 +1,9 @@
+// TODO: sw.js to be implemented in typescript
+//
+import { precacheAndRoute } from 'workbox-precaching';
+
+precacheAndRoute(self.__WB_MANIFEST);
+
 self.addEventListener("install", function (_event) {
     console.log("[SW] Installing...");
     self.skipWaiting(); // Activate immediately
