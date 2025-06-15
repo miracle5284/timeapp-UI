@@ -48,7 +48,11 @@ function AuthSwitcher({ signUp }: AuthSwitcherProps) {
                                 <p className="text-sm mb-6">
                                     Enter your personal details and start your journey with us
                                 </p>
-                                <Button onClick={() => setIsSignUp(true)} text="Sign Up" className="mx-auto transition" />
+                                <Button onClick={() => setIsSignUp(true)} className="mx-auto transition ctrl-btn smooth shadow-glow
+                                        bg-[var(--color-accent)] hover:brightness-110
+                                disabled:brightness-50">
+                                    Sign Up
+                                </Button>
                             </>
                         ) : (
                             <>
@@ -56,7 +60,11 @@ function AuthSwitcher({ signUp }: AuthSwitcherProps) {
                                 <p className="text-sm mb-6">
                                     To keep connected with us please login with your personal info
                                 </p>
-                                <Button onClick={() => setIsSignUp(false)} text="Sign In" className="mx-auto transition" />
+                                <Button onClick={() => setIsSignUp(false)} className="mx-auto transition ctrl-btn smooth shadow-glow
+                                        bg-[var(--color-accent)] hover:brightness-110
+                                disabled:brightness-50">
+                                    Sign In
+                                </Button>
                             </>
                         )}
                     </div>

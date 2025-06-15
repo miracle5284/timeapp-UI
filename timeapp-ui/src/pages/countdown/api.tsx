@@ -1,13 +1,13 @@
 import API from "../../../lib/api.ts";
-import {ICountdownResponse} from "./dtypes.tsx";
+import {ICountdownResponse, IRenameCountdownResponse} from "./dtypes.tsx";
 
 /**
  * Fetches the current countdown state from the backend
  * Includes session credentials for user-specific session data
  * @returns {Promise<Object>} Countdown state including duration, active flag, etc.
  */
-export const getCountdown = async () => {
-    const resp = await API.get(`/v2/countdown/`);
+export const getCountdown = async (timerId?: string) => {
+    const resp = await API.get(timerId ? `v2/countdown/${timerId}/` : `/v2/countdown/`);
     return resp.data;
 };
 
@@ -20,12 +20,19 @@ export const getCountdown = async () => {
  * @param timestamp
  */
 export const startCountdown = async (
-    id: string, name: string, durationSeconds: number, timestamp: string): Promise<ICountdownResponse> => {
-    const payload = { name: name || "Test 1", durationSeconds, timestamp}
+    id: string | null, name: string, durationSeconds: number, timestamp: string): Promise<ICountdownResponse> => {
+    const payload = { name: name, durationSeconds, timestamp}
     const resp = await (id ? API.patch(`/v2/countdown/${id}/start/`, payload) :
         API.post(`/v2/countdown/`, payload))
     return resp.data;
 };
+
+export const renameCountdown  = async (
+    id: string, name: string): Promise<IRenameCountdownResponse> => {
+    const resp = await API.patch(`/v2/countdown/${id}/rename/`, {name})
+    return resp.data;
+};
+
 
 /**
  * Pauses the currently active countdown timer
@@ -62,3 +69,14 @@ export const completeCountdown = async (id : string, timestamp: string): Promise
     const resp = await API.patch(`v2/countdown/${id}/completed/`, { timestamp });
     return resp.data;
 };
+
+/**
+ * Resets the countdown timer to the originally set duration
+ * @returns {Promise<Object>} Server confirmation response
+ * @param id
+ */
+export const deleteCountdown = async (id : string) => {
+    const resp = await API.delete(`v2/countdown/${id}/`);
+    return resp.data;
+};
+
