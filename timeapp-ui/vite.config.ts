@@ -14,13 +14,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
     const env = { ...process.env, ...loadEnv(mode, process.cwd()) };
     const isLocal = env.LOCAL === 'true';
+    const isProd  = mode === 'production';
 
-    console.log('isLocal:', isLocal);
-    // for Local development only - we want to server on https
+    // HTTPS config for local development
     const httpsConfig = isLocal
         ? {
-            key: fs.readFileSync(path.join(__dirname, 'certs/chrona-frontend.com-key.pem')),
-            cert: fs.readFileSync(path.join(__dirname, 'certs/chrona-frontend.com.pem')),
+            key:  fs.readFileSync(path.resolve(__dirname, 'certs/chrona-frontend.com-key.pem')),
+            cert: fs.readFileSync(path.resolve(__dirname, 'certs/chrona-frontend.com.pem')),
         }
         : undefined;
 
@@ -28,101 +28,89 @@ export default defineConfig(({ mode }) => {
         plugins: [
             react(),
             tailwindcss(),
+            // local HTTPS with mkcert
             isLocal && mkcert(),
+
+            // PWA plugin
+            isProd &&
             VitePWA({
-                registerType: 'autoUpdate',
+                registerType:   'autoUpdate',
+                injectRegister: 'auto',           // inject SW registration script
+                strategies:     'injectManifest', // keep your custom sw.js
+                srcDir:         'src',
+                filename:       'sw.js',
                 includeAssets: ['favicon.svg', 'robots.txt'],
+
                 manifest: {
-                    name: 'Chrona Time App',
-                    short_name: 'Chrona',
-                    start_url: '/',
-                    display: 'standalone',
-                    background_color: '#ffffff',
-                    theme_color: '#0f172a',
-                    //scope: '/',
+                    name:            'Chrona Time App',
+                    short_name:      'Chrona',
+                    start_url:       '/',
+                    scope:           '/',
+                    display:         'standalone',
+                    background_color:'#ffffff',
+                    theme_color:     '#0f172a',
                     icons: [
                         {
-                            src: '/assets/img/clock_144x144.png',
-                            sizes: '144x144',
-                            type: 'image/png',
-                            purpose: "any"
+                            src:     '/assets/img/clock_144x144.png',
+                            sizes:   '144x144',
+                            type:    'image/png',
+                            purpose: 'any',
                         },
                         {
-                            src: '/assets/img/clock_512x512.svg',
-                            sizes: '512x512',
-                            type: 'image/svg',
-                            purpose: "any"
+                            src:     '/assets/img/clock_512x512.svg',
+                            sizes:   '512x512',
+                            type:    'image/svg+xml',
+                            purpose: 'any',
                         },
                     ],
-                    "screenshots": [
+                    screenshots: [
                         {
-                            "src": "/assets/img/clock_1280x720.svg",
-                            "sizes": "1280x720",
-                            "type": "image/svg",
-                            "form_factor": "wide"
+                            src:         '/assets/img/clock_1280x720.svg',
+                            sizes:       '1280x720',
+                            type:        'image/svg+xml',
+                            form_factor: 'wide',
                         },
                         {
-                            "src": "/assets/img/clock_375x667.svg",
-                            "sizes": "375x667",
-                            "type": "image/svg",
-                            "form_factor": "narrow"
-                        }
+                            src:         '/assets/img/clock_375x667.svg',
+                            sizes:       '375x667',
+                            type:        'image/svg+xml',
+                            form_factor: 'narrow',
+                        },
                     ],
-
-                    // shortcuts: [
-                    //     {
-                    //         name: "Start Timer",
-                    //         url: "/timer/start",
-                    //         icons: [{ src: "/icons/start.png", sizes: "192x192", type: "image/png" }]
-                    //     },
-                    //     {
-                    //         name: "Dashboard",
-                    //         url: "/dashboard",
-                    //         icons: [{ src: "/icons/dashboard.png", sizes: "192x192", type: "image/png" }]
-                    //     }
-                    // ]
-
                 },
-                // srcDir: '',
-                // filename: 'sw.js',
-                // devOptions: {
-                //     enabled: true, // allow in dev
-                //     type: 'module',
-                //     navigateFallback: '/', // disable fallback in dev
-                // },
-                // injectManifest: {
-                //     swSrc: path.resolve(__dirname, 'src/sw.js'),
-                //     swDest: 'sw.js',
-                // },
-                strategies: "injectManifest",
-                srcDir: "src",
-                filename: "sw.js",
+
                 workbox: {
-                    globPatterns: ['**/*.{js,css,html,png,svg,ico,ts,webmanifest}'],
-                    globIgnores: ['**/node_modules/**/*', 'workbox-*.js'],
+                    globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+                    globIgnores:  ['**/node_modules/**/*', 'workbox-*.js'],
                     manifestTransforms: [
-                            async (entries) => {
-                                const deduped = entries.filter(
-                                    e => !e.url.includes('?__WB_REVISION__')
-                                );
-                                return { manifest: deduped };
-                            }
-                        ]
-                    }
+                        async (entries) => {
+                            const seen = new Set<string>();
+                            const deduped = entries.filter((e) => {
+                                const url = e.url.split('?')[0];
+                                if (seen.has(url)) return false;
+                                seen.add(url);
+                                return true;
+                            });
+                            return { manifest: deduped };
+                        },
+                    ],
+                },
             }),
-        ],//.filter(Boolean),
+        ].filter(Boolean),
+
+        // Local dev server with HTTPS
         server: isLocal
             ? {
-                https: httpsConfig,
-                host: 'chrona-frontend.com',
-                watch: {
-                    usePolling: true,
-                },
+                https:    httpsConfig,
+                host:     'chrona-frontend.com',
+                watch:    { usePolling: true },
                 strictPort: true,
             }
             : undefined,
+
+        // Env-injected globals
         define: {
-            BACKEND_APP_URL: JSON.stringify(env.BACKEND_URL),
+            BACKEND_APP_URL:  JSON.stringify(env.BACKEND_URL),
             VAPID_PUBLIC_KEY: JSON.stringify(env.VPUBLIC_KEY),
         },
     };
