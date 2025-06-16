@@ -1,6 +1,6 @@
 // types/dtypes.d.ts
 
-interface ChromeRuntime {
+export interface ChromeRuntime {
     runtime?: {
         sendMessage: (
             extensionId: string,
@@ -22,6 +22,10 @@ declare global {
     interface WindowEventMap {
         // Tell TS about the beforeinstallprompt event
         beforeinstallprompt: BeforeInstallPromptEvent;
+    }
+
+    interface PongResponse {
+        type: 'PONG_FROM_EXTENSION';
     }
 
     namespace Chrome {

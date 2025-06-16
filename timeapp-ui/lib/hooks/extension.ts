@@ -102,7 +102,7 @@ export const useExtensionStatus = () => {
      */
     const checkExtensionHandshake = () => {
         if (window.chrome?.runtime && extensionId) {
-            window.chrome.runtime.sendMessage(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
+            window.chrome.runtime.sendMessage<PongResponse>(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
                 const success = !window.chrome?.runtime?.lastError && response?.type === "PONG_FROM_EXTENSION";
                 setIsActive(success);
             });
