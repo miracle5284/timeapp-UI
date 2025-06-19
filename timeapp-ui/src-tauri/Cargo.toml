@@ -1,0 +1,32 @@
+[package]
+name            = "chrona-timer-app"
+version         = "0.1.0"
+description     = "Chrona Time App — desktop shell for your PWA"
+authors         = ["BluePrime <support@blueprime.app>"]
+license-file    = "../LICENSE"
+repository      = "https://github.com/miracle5284/timeapp-UI"
+edition         = "2024"
+rust-version    = "1.85.0"
+
+[lib]
+name         = "app_lib"
+crate-type   = ["staticlib", "cdylib", "rlib"]
+
+# build-time helper for bundling your web assets
+[build-dependencies]
+tauri-build = { version = "2.2.0", features = [] }
+
+[dependencies]
+# the Tauri core runtime
+tauri = { version = "2.5.1", default-features = false, features = ["wry", "tray-icon"] }             # :contentReference[oaicite:0]{index=0}
+
+# official Tauri plugins
+# tauri-plugin-updater      = "2.7.1"    # In-app updates for Tauri v2 :contentReference[oaicite:0]{index=0}
+tauri-plugin-log          = "2.5.0"    # desktop logging integration (matches the version you saw being downloaded in your build) :contentReference[oaicite:1]{index=1}
+# tauri-plugin-system-tray  = "0.1.0"    # system tray menus & events :contentReference[oaicite:2]{index=2}
+tauri-plugin-autostart    = "2.4.0"    # auto-launch at login on Win/macOS/Linux :contentReference[oaicite:3]{index=3}
+
+# your existing app deps
+serde                     = { version = "1.0", features = ["derive"] }
+serde_json                = "1.0"
+log                       = "0.4"

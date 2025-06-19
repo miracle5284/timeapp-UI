@@ -26,3 +26,7 @@ dist-ssr
 .idea/
 
 **.env
+
+
+*/src-tauri/target/**
+*/src-tauri/gen/schemas/**

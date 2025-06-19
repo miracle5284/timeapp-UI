@@ -24,6 +24,11 @@ export default defineConfig(({ mode }) => {
         : undefined;
 
     return {
+        base: "./",
+        build: {
+            outDir: "dist",
+            sourcemap: true,
+        },
         plugins: [
             react(),
             tailwindcss(),

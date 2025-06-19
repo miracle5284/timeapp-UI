@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run build:web && tauri build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -27,6 +29,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/cli": "^2.5.0",
     "@types/node": "^22.13.14",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",

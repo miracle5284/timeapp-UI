@@ -1,0 +1,42 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+
+  "productName": "Chrona Time App",
+  "version":     "1.0.0",
+  "identifier":  "com.acme.chrona",
+
+  "build": {
+    "beforeDevCommand":   "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl":             "https://localhost:5173",
+    "frontendDist":       "../dist"
+  },
+
+  "app": {
+    "windows": [
+      {
+        "title":      "Chrona",
+        "width":      1024,
+        "height":     768,
+        "resizable":  true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src blob: data: filesystem: ws: http: https: 'unsafe-inline'"
+    }
+  },
+
+  "bundle": {
+    "active":  true,
+    "targets": ["deb","msi","dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Chrona Time App",
+    "longDescription":  "Chrona Time App — built & maintained by BluePrime"
+  }
+}
