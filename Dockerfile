@@ -6,7 +6,10 @@ WORKDIR /app/timeapp-ui
 
 RUN npm ci
 ARG BACKEND_URL
+ARG VPUBLIC_KEY
 ENV BACKEND_APP_URL=$BACKEND_URL
+ENV VPUBLIC_KEY=$VPUBLIC_KEY
+
 RUN npm run build
 
 # Serve stage

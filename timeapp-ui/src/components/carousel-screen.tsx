@@ -8,14 +8,39 @@ import React, {
 import {ChevronLeftIcon, ChevronRightIcon, PlusIcon} from "lucide-react";
 import {Button} from "./ui/ui-assets.tsx";
 
+interface SlideProps {
+    className?: string
+    isActive?: boolean
+}
+
 interface CarouselProps {
-    children: React.ReactNode;
+    children: React.ReactElement<SlideProps>[];
     onSlideChange?: (slide: number) => void;
     initialSlide?: number;
     slideWidthClass?: string; // e.g. "w-80"
     addButtonFn?: () => void;
 }
 
+/**
+ * CarouselScreen component
+ *
+ * A horizontally scrollable carousel for displaying slides (children).
+ *
+ * Props:
+ * - children: Array of React elements (slides) to display.
+ * - onSlideChange: Optional callback when the active slide changes.
+ * - initialSlide: Optional index to set the initial active slide.
+ * - slideWidthClass: Optional Tailwind width class for each slide (e.g., 'w-80').
+ * - addButtonFn: Optional callback for an add button (e.g., to add a new slide).
+ *
+ * Each child should accept SlideProps (className, isActive).
+ *
+ * Example usage:
+ * <CarouselScreen initialSlide={0} onSlideChange={...} slideWidthClass="w-80">
+ *   <SlideComponent ... />
+ *   <SlideComponent ... />
+ * </CarouselScreen>
+ */
 const CarouselScreen = ({
                             children,
                             onSlideChange,
@@ -23,7 +48,9 @@ const CarouselScreen = ({
                             slideWidthClass = "min-w-[320px] max-w-[750px]",
                             addButtonFn,
                         }: CarouselProps) => {
-    const slides = Children.toArray(children) as ReactElement[];
+    const slides = Children.toArray(children).filter(
+        React.isValidElement
+    ) as ReactElement<SlideProps>[];
     const [current, setCurrent] = useState(initialSlide);
 
     const setSlide = (slide: number) => {
@@ -50,7 +77,6 @@ const CarouselScreen = ({
 
     }
 
-
     return (
         <div className={`relative mx-auto ${slideWidthClass} overflow-hidden`}>
             {/** TRACK **/}
@@ -64,7 +90,7 @@ const CarouselScreen = ({
                 {slides.map((slide, index) =>
                     cloneElement(slide, {
                         key: index,
-                        className: `flex-shrink-0 ${slideWidthClass} ${slide?.props.classes ?? ''}`,
+                        className: `flex-shrink-0 ${slideWidthClass} ${slide?.props.className ?? ''}`,
                         isActive: index === current,
                     })
                 )}

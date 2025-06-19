@@ -24,9 +24,7 @@ const extensionName = "timer-keeper";
  */
 export const useExtensionStatus = () => {
     const [isActive, setIsActive] = useState(false);
-    const [notificationPermission, setNotificationPermission] = useState(false);
-    useNotificationPermission({ permissionHook: [notificationPermission, setNotificationPermission] });
-
+    const { isGranted: notificationPermissionGranted } = useNotificationPermission();
     const interval = useRef<NodeJS.Timeout | null>(null);
     const isHandshakeRunning = useRef(false);
     const dataContainerDivRef = useRef<HTMLElement | null>(null);
@@ -104,7 +102,7 @@ export const useExtensionStatus = () => {
      */
     const checkExtensionHandshake = () => {
         if (window.chrome?.runtime && extensionId) {
-            window.chrome.runtime.sendMessage(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
+            window.chrome.runtime.sendMessage<PongResponse>(extensionId, { type: "PING_FROM_PAGE" }, (response) => {
                 const success = !window.chrome?.runtime?.lastError && response?.type === "PONG_FROM_EXTENSION";
                 setIsActive(success);
             });
@@ -216,7 +214,7 @@ export const useExtensionStatus = () => {
     useEffect(() => {
         if (!isActive) {
             sendNotification({
-                notificationPermission: notificationPermission && document.visibilityState !== "visible",
+                notificationPermissionGranted: notificationPermissionGranted && document.visibilityState !== "visible",
                 title: "Timer Keeper is inactive",
                 body: "Please enable the Timer Keeper extension for optimum results.",
                 requireInteraction: true,
@@ -235,7 +233,7 @@ export const useExtensionStatus = () => {
         checkForExtension();
         updatePromptVisibility();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isActive, notificationPermission]);
+    }, [isActive, notificationPermissionGranted]);
 
     /**
      * Fetch extension metadata (ID, title) on mount.

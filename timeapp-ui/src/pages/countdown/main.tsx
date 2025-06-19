@@ -57,14 +57,22 @@ function CountDownComponent({
 
     const [triggerCompletion, setTriggerCompletion] = useState(false); // For tracking which digit is being changed
     const [isHover, setIsHover] = useState<HoverTarget>([null, null]); // For tracking hovered digit
-    const [notificationPermission, setNotificationPermission] = useState(false); // Notification toggle
+    // const [notificationPermission, setNotificationPermission] = useState(false); // Notification toggle
     const [showControls, setShowControls] = useState(false);
 
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);  // Interval handler
+    const intervalRef = useRef<NodeJS.Timeout | null>(null); // Interval handler
     const endTimeRef = useRef<number>(0);                    // Reference to target end time
     const audioRef = useRef<HTMLAudioElement | null>(null);  // Alarm sound reference
+    const isActiveRef = useRef(countdownData.isActive); // Add a ref to always have the latest isActive/inActive values
+    const inActiveRef = useRef(countdownData.inActive);
+    const {isGranted: notificationPermissionGranted} = useNotificationPermission();
 
-    useNotificationPermission({ permissionHook: [notificationPermission, setNotificationPermission] });
+    // Setups
+
+    useEffect(() => {
+        isActiveRef.current = countdownData.isActive;
+        inActiveRef.current = countdownData.inActive;
+    }, [countdownData.isActive, countdownData.inActive]);
 
     /**
      * Converts seconds to hours/minutes/seconds digit arrays for display
@@ -84,20 +92,50 @@ function CountDownComponent({
     /**
      * Main countdown logic executed every second
      */
-    const countDown = useCallback(() => {
-        const now = performance.now();
-        const remaining = Math.ceil((endTimeRef.current - now) / 1000);
+    const tick = useCallback(() => {
+        const remaining = Math.ceil((endTimeRef.current - Date.now()) / 1000);
         const safeRemaining = Math.max(0, remaining);
         updateDisplay(safeRemaining);
 
-        if (!countdownData.inActive && safeRemaining <= 0) {
+        if (safeRemaining > 0) {
+            intervalRef.current = setTimeout(tick, 1000)
+        }
+
+        if (safeRemaining <= 0) {
+        if (!inActiveRef.current && safeRemaining <= 0) {
             clearInterval(intervalRef.current!);
             intervalRef.current = null;
             setCountdownData(prev => ({ ...prev, timeUp: true, isActive: false }));
             setTriggerCompletion(true)
             setCountdownDuration(0);
         }
-    }, [countdownData.inActive, updateDisplay]);
+    }}, [updateDisplay, timerId]);
+
+// // 1) Visibility listener effect
+//     useEffect(() => {
+//         const onVisibilityChange = () => {
+//             if (countdownData.isActive) {
+//                 tick();
+//             }
+//         };
+//
+//         document.addEventListener('visibilitychange', onVisibilityChange);
+//         return () => {
+//             document.removeEventListener('visibilitychange', onVisibilityChange);
+//         };
+//     }, [countdownData.isActive, tick]);
+//
+// // 2) Unmount-only cleanup effect
+//     useEffect(() => {
+//         return () => {
+//             if (intervalRef.current !== null) {
+//                 clearTimeout(intervalRef.current);
+//                 intervalRef.current = null;
+//             }
+//         };
+//     }, []);
+//
+
 
     /**
      * Converts display digits to total seconds
@@ -119,7 +157,7 @@ function CountDownComponent({
     // Trigger notification and sound when timer is up
     const notify = useCallback(() => {
         sendNotification({
-            notificationPermission,
+            notificationPermissionGranted,
             title: "Timer Up",
             body: `Your ${countdownData.name} has finished`,
             requireInteraction: true,
@@ -146,12 +184,15 @@ function CountDownComponent({
     /**
      * Initializes and starts the timer with specified duration
      */
-    const startTimer = useCallback((duration: number, skipEndTimeCalculate?: boolean) => {
-        if (!skipEndTimeCalculate) endTimeRef.current = performance.now() + duration * 1000;
-        intervalRef.current = setInterval(countDown, 1000);
-        setCountdownData(prev => ({ ...prev, isActive: true }));
-        updateDisplay(duration);
-    }, [countDown, updateDisplay]);
+    const startTimer = useCallback(
+        (duration: number, skipEndTimeCalculate?: boolean) => {
+            if (!skipEndTimeCalculate) endTimeRef.current = Date.now() + duration * 1000;
+            // intervalRef.current = setInterval(tick, 1000);
+            clearInterval(intervalRef.current!); // Clear any existing interval before starting a new one
+            setCountdownData(prev => ({ ...prev, isActive: true }));
+            updateDisplay(duration);
+            tick()
+        }, [tick, updateDisplay]);
 
     // Fetch timer state from backend on mount
     const { data, isLoading, refetch } = useQuery<Timer>({
@@ -168,10 +209,10 @@ function CountDownComponent({
         }
     }, [isActive, refetch, timerId]);
 
-    useEffect(() => {
-        console.log("timer  active", timerId, isActive)
-        console.log("timer  countdown", countdownData, data)
-    }, [countdownData, isActive, timerId, data]);
+    // useEffect(() => {
+    //     console.log("timer  active", timerId, isActive)
+    //     console.log("timer  countdown", countdownData, data)
+    // }, [timerId, data, countdownData]);
 
     useEffect(() => {
         console.log("timer  sssssss", timerId, data, isLoading)
@@ -227,8 +268,8 @@ function CountDownComponent({
                 console.log('PAUSEDDDDDDD', response);
                 setCountdownData(prev => ({ ...prev, isActive: false }));
                 if (intervalRef.current) {
+                    clearTimeout(intervalRef.current);
                     console.log('PAUSED Cleared');
-                    clearInterval(intervalRef.current);
                     intervalRef.current = null;
                 }
             }
@@ -247,7 +288,6 @@ function CountDownComponent({
             }
         },
     });
-
 
     const completeTimerMutation = useMutation({
         mutationFn: ({ id, timestamp } : ICompleteCountdown) => completeCountdown(id, timestamp),
@@ -395,7 +435,7 @@ function CountDownComponent({
             {/* Timer display */}
             <div className="mt-6 sm:mt-20 mb-4 sm:mb-12 flex flex-wrap justify-center items-center gap-3 sm:gap-6 px-2 sm:px-4">
                 {(['hours', 'minutes', 'seconds'] as const).map((unit, i) => (
-                    <React.Fragment key={unit}>
+                    <React.Fragment key={`${unit}-${i}`}>
                         <Display
                             value={display[unit]}
                             label={unit.toUpperCase()}
@@ -426,7 +466,7 @@ function CountDownComponent({
                 <Button
                     onClick={toggleTimer}
                     disabled={!countdownDuration}
-                    className="ctrl-btn smooth shadow-glow
+                    className="ctrl-btn smooth shadow-glow z-50
                    disabled:brightness-75"
                 >
                     {countdownData.isActive ? 'Pause' : 'Start'}
@@ -435,7 +475,7 @@ function CountDownComponent({
                 <Button
                     onClick={() => resetTimerMutation.mutate({id: countdownData.id!})}
                     disabled={!countdownData.durationSeconds}
-                    className="ctrl-btn smooth shadow-glow
+                    className="ctrl-btn smooth shadow-glow z-50
                    bg-[var(--color-accent)] hover:brightness-110
                    disabled:brightness-50"
                 >
