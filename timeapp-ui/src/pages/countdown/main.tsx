@@ -48,13 +48,12 @@ function CountDownComponent() {
     const [timerIndex, setTimerIndex] = useState<number | null>(null); // For tracking which digit is being changed
     const [triggerCompletion, setTriggerCompletion] = useState(false); // For tracking which digit is being changed
     const [isHover, setIsHover] = useState<HoverTarget>([null, null]); // For tracking hovered digit
-    const [notificationPermission, setNotificationPermission] = useState(false); // Notification toggle
 
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);  // Interval handler
+    const intervalRef = useRef<number | null>(null); // Interval handler
     const endTimeRef = useRef<number>(0);                    // Reference to target end time
     const audioRef = useRef<HTMLAudioElement | null>(null);  // Alarm sound reference
 
-    useNotificationPermission({ permissionHook: [notificationPermission, setNotificationPermission] });
+    const {isGranted: notificationPermissionGranted} = useNotificationPermission();
 
     /**
      * Converts seconds to hours/minutes/seconds digit arrays for display
@@ -74,20 +73,48 @@ function CountDownComponent() {
     /**
      * Main countdown logic executed every second
      */
-    const countDown = useCallback(() => {
-        const now = performance.now();
-        const remaining = Math.ceil((endTimeRef.current - now) / 1000);
+    const tick = useCallback(() => {
+        const remaining = Math.ceil((endTimeRef.current - Date.now()) / 1000);
         const safeRemaining = Math.max(0, remaining);
         updateDisplay(safeRemaining);
 
+        if (safeRemaining > 0) {
+            intervalRef.current = window.setTimeout(tick, 1000)
+        }
+
         if (safeRemaining <= 0) {
-            clearInterval(intervalRef.current!);
             intervalRef.current = null;
             setCountdownData(prev => ({ ...prev, timeUp: true, isActive: false }));
             setTriggerCompletion(true)
             setCountdownDuration(0);
         }
     }, [updateDisplay]);
+
+// // 1) Visibility listener effect
+//     useEffect(() => {
+//         const onVisibilityChange = () => {
+//             if (countdownData.isActive) {
+//                 tick();
+//             }
+//         };
+//
+//         document.addEventListener('visibilitychange', onVisibilityChange);
+//         return () => {
+//             document.removeEventListener('visibilitychange', onVisibilityChange);
+//         };
+//     }, [countdownData.isActive, tick]);
+//
+// // 2) Unmount-only cleanup effect
+//     useEffect(() => {
+//         return () => {
+//             if (intervalRef.current !== null) {
+//                 clearTimeout(intervalRef.current);
+//                 intervalRef.current = null;
+//             }
+//         };
+//     }, []);
+//
+
 
     /**
      * Converts display digits to total seconds
@@ -111,7 +138,7 @@ function CountDownComponent() {
         console.log(timerIndex)
         if (countdownData.timeUp) {
             sendNotification({
-                notificationPermission,
+                notificationPermissionGranted,
                 title: "Timer Up",
                 body: `Your ${countdownData.durationSeconds} seconds has finished`,
                 requireInteraction: true,
@@ -138,12 +165,14 @@ function CountDownComponent() {
     /**
      * Initializes and starts the timer with specified duration
      */
-    const startTimer = useCallback((duration: number, skipEndTimeCalculate?: boolean) => {
-        if (!skipEndTimeCalculate) endTimeRef.current = performance.now() + duration * 1000;
-        intervalRef.current = setInterval(countDown, 1000);
-        setCountdownData(prev => ({ ...prev, isActive: true }));
-        updateDisplay(duration);
-    }, [countDown, updateDisplay]);
+    const startTimer = useCallback(
+        (duration: number, skipEndTimeCalculate?: boolean) => {
+            if (!skipEndTimeCalculate) endTimeRef.current = Date.now() + duration * 1000;
+            // intervalRef.current = setInterval(tick, 1000);
+            setCountdownData(prev => ({ ...prev, isActive: true }));
+            updateDisplay(duration);
+            tick()
+        }, [tick, updateDisplay]);
 
     // Fetch timer state from backend on mount
     const { data, isLoading } = useQuery<TimerResponse>({
@@ -156,7 +185,7 @@ function CountDownComponent() {
             const index = data.results.length - 1;
             setTimerIndex(index)
             const _data = data.results[index];
-            endTimeRef.current = performance.now() + _data.remainingDurationSeconds * 1000;
+            endTimeRef.current = Date.now() + _data.remainingDurationSeconds * 1000;
             setCountdownData({
                 id: _data.id,
                 isActive: _data.status === "active",
@@ -197,7 +226,7 @@ function CountDownComponent() {
             if (response.status === "paused") {
                 setCountdownData(prev => ({ ...prev, isActive: false }));
                 if (intervalRef.current) {
-                    clearInterval(intervalRef.current);
+                    clearTimeout(intervalRef.current);
                     intervalRef.current = null;
                 }
             }
