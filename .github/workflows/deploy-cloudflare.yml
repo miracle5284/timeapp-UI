@@ -1,0 +1,55 @@
+
+name: Build & deploy Chrona UI via Wrangler
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) (Optional) Fetch build-time secrets from Azure Key Vault
+      - name: Azure Login
+        uses: Azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Fetch build-time secrets
+        run: |
+          echo "VITE_BACKEND_API_URL=$(az keyvault secret show \
+            --vault-name ${{ secrets.KEY_VAULT_NAME }} \
+            --name BASE-URL --query value -o tsv)" >> $GITHUB_ENV
+          echo "VITE_VPUBLIC_KEY=$(az keyvault secret show \
+            --vault-name ${{ secrets.KEY_VAULT_NAME }} \
+            --name VPUBLIC-KEY --query value -o tsv)" >> $GITHUB_ENV
+
+      # 2) Install & build
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+      - run: npm ci
+      - run: npm run build
+
+      # 3) Deploy via Wrangler
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken:    ${{ secrets.CF_API_TOKEN }}
+          accountId:   ${{ secrets.CF_ACCOUNT_ID }}
+          command:     pages deploy ./dist --project-name=${{ secrets.CF_PROJECT_NAME }}
+          workingDirectory: ./
+          # optionally: gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Show deployment URL
+        run: echo "✅ Deployed to ${{ steps.deploy.outputs.deployment-url }}"
