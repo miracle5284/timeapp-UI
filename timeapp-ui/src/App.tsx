@@ -20,7 +20,7 @@ function App() {
     const showSafariBanner          = useSafariInstallBanner();
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#111]">
+        <div className="min-h-screen max-h-screen h-screen flex flex-col bg-[#111]">
             {/* macOS Safari: File→Add to Home Screen */}
             {showSafariBanner && (
                 <div

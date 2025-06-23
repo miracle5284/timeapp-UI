@@ -78,29 +78,37 @@ const CarouselScreen = ({
     }
 
     return (
-        <div className={`relative mx-auto ${slideWidthClass} overflow-hidden`}>
-            {/** TRACK **/}
+        <div
+            className={
+                // Responsive: full width on mobile, max width on desktop
+                `relative mx-auto w-full max-w-[750px] sm:${slideWidthClass} overflow-hidden`
+            }
+        >
+            {/* TRACK */}
             <div
-                className="flex transition-transform duration-300 gap-10"
+                className="flex transition-transform duration-300 gap-4 sm:gap-10"
                 style={{
-                    width: `${slides.length * 100}%`,                        // total track width
-                    transform: `translateX(-${(100 / slides.length) * current}%)`, // one “slide” at a time
+                    width: `${slides.length * 100}%`,
+                    transform: `translateX(-${(100 / slides.length) * current}%)`,
                 }}
             >
                 {slides.map((slide, index) =>
                     cloneElement(slide, {
                         key: index,
-                        className: `flex-shrink-0 ${slideWidthClass} ${slide?.props.className ?? ''}`,
+                        // Responsive: slide fills viewport on mobile, fixed width on desktop
+                        className: `flex-shrink-0 w-full max-w-full px-2 sm:${slideWidthClass} ${slide?.props.className ?? ''}`,
                         isActive: index === current,
                     })
                 )}
             </div>
 
+            {/* Navigation arrows - repositioned for mobile */}
             {current > 0 && (
                 <button
                     onClick={prev}
                     className="absolute left-2 top-1/2 -translate-y-1/2 bg-gray-800 p-2 rounded-full
-                     hover:bg-gray-700 cursor-pointer"
+                        hover:bg-gray-700 cursor-pointer z-20 sm:left-2"
+                    aria-label="Previous slide"
                 >
                     <ChevronLeftIcon size={20} className="text-white" />
                 </button>
@@ -109,38 +117,39 @@ const CarouselScreen = ({
                 <Button
                     onClick={next}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-800 p-2 rounded-full
-                     hover:bg-gray-700 cursor-pointer"
+                        hover:bg-gray-700 cursor-pointer z-20 sm:right-2"
+                    aria-label="Next slide"
                 >
                     <ChevronRightIcon size={20} className="text-white" />
                 </Button>
             )}
 
-            <div className="relative w-full px-6 h-10 my-5">
+            {/* Pagination dots and add button - always visible and centered on mobile */}
+            <div className="relative w-full flex flex-col items-center px-2 h-16 mt-2 mb-2 sm:px-6 sm:h-10 sm:my-5">
                 <div className="flex justify-center items-center h-full space-x-3">
                     {slides.map((_, i) => (
                         <button
                             key={i}
                             onClick={() => setCurrent(i)}
-                            className={`w-2 h-2 rounded-full ${
-                                i === current
-                                    ? "bg-gradient-to-r from-blue-500 to-purple-500"
-                                    : "bg-gray-600"
-                            }`}
+                            className={`w-2 h-2 rounded-full transition-colors duration-200
+                                ${i === current ? "bg-gradient-to-r from-blue-500 to-purple-500" : "bg-gray-600"}`}
+                            aria-label={`Go to slide ${i + 1}`}
                         />
                     ))}
                 </div>
                 {addButtonFn && (
-                    <div className="absolute right-6 top-1/2 transform -translate-y-1/2">
+                    <div className="absolute right-4 bottom-0 sm:right-6 sm:top-1/2 sm:transform sm:-translate-y-1/2">
                         <Button
                             onClick={addSlide}
-                            className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex
-                                      via-purple-500 items-center shadow-lg hover:scale-110 transition-transform
-                                      justify-center cursor-pointer">
-                            <PlusIcon size={30} className="text-white" />
+                            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex
+                                via-purple-500 items-center shadow-lg hover:scale-110 transition-transform
+                                justify-center cursor-pointer"
+                            aria-label="Add timer"
+                        >
+                            <PlusIcon size={28} className="text-white" />
                         </Button>
                     </div>
                 )}
-
             </div>
         </div>
     );

@@ -4,8 +4,19 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {ICountdownResponse, IStartCountdown, TimerResponse} from "./dtypes.tsx";
 import {deleteCountdown, getCountdown, startCountdown} from "./api.tsx";
 import CarouselScreen from "../../components/carousel-screen.tsx";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 
+
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth <= 600);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
+    return isMobile;
+}
 
 function Countdown () {
 
@@ -36,6 +47,8 @@ function Countdown () {
         }
     )
 
+    const isMobile = useIsMobile();
+
     if (isLoading) return <div>Loading timers...</div>
     if (error || !data) return <div>Error loading timers...</div>
 
@@ -45,20 +58,19 @@ function Countdown () {
                 initialSlide={current}
                 onSlideChange={setCurrent}
                 addButtonFn={() => {
-                    console.log('aaaa',);
                     createTimer.mutate(
-                { name: `Timer ${data.results.length + 1}`, durationSeconds: 0, timestamp: new Date().toISOString(),
-                    id: null, status: "inactive" }
-            )}}>
+                        { name: `Timer ${data.results.length + 1}`, durationSeconds: 0, timestamp: new Date().toISOString(),
+                            id: null, status: "inactive" }
+                    )}}>
                 {data.results.map((timers) =>
                     <CountDownComponent
                         id={timers.id}
                         timerId={timers.id}
                         onDelete={() => removeTimer.mutate(timers.id)}/>
                 )}
-
             </CarouselScreen>
-            <ExtensionPrompt />
+            {/* Only show ExtensionPrompt on desktop/tablet */}
+            {!isMobile && <ExtensionPrompt />}
         </>
     )
 }
