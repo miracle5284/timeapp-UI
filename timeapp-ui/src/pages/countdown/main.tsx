@@ -415,7 +415,7 @@ function CountDownComponent({
                 <input
                     type="text"
                     name="timer-name"
-                    defaultValue={countdownData.name}
+                    defaultValue={countdownData.name || `Timer ${timerId.substring(0, 5)}`}
                     onBlur={(e) =>
                         e.target.value !== countdownData.name &&
                         setTimerName.mutate({ id: timerId, name: e.target.value })}
