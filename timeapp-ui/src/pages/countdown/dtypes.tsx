@@ -31,7 +31,16 @@ export interface IDisplay {
 }
 
 export interface IStartCountdown {
-    id: string | null; name: string; durationSeconds: number; timestamp: string
+    id: string | null;
+    name: string;
+    durationSeconds: number;
+    timestamp: string;
+    status?: "active" | "paused" | "completed" | "inactive";
+}
+
+export interface IRenameCountdown {
+    id: string;
+    name: string;
 }
 
 export interface IPauseCountdown {
@@ -51,13 +60,13 @@ export interface ICompleteCountdown {
 export interface CountdownState {
     id: string | null;
     isActive: boolean;
+    inActive: boolean;
     timeUp: boolean;
     durationSeconds: number;
     remainingDurationSeconds: number;
     startAt: string | null;
     pausedAt: string | null;
     resumedAt: string | null;
-    status?: string;
     name?: string;
 }
 
@@ -71,3 +80,12 @@ export interface ICountdownResponse {
     status: "active" | "paused" | "completed" | "inactive";
     updatedAt: string;
 }
+
+export interface IRenameCountdownResponse {
+    data : {
+        name: string,
+    },
+    message: string,
+}
+
+

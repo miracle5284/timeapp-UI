@@ -133,7 +133,10 @@ export default function SignUpForm() {
             )}
 
             <div className="flex justify-center">
-                <Button className="w-full max-w-sm" text={loading ? "Creating Account..." : "Sign Up"} disabled={loading} />
+                <Button className="w-full max-w-sm ctrl-btn smooth shadow-glow
+                                        bg-[var(--color-accent)] hover:brightness-110" disabled={loading}>
+                    {loading ? "Creating Account..." : "Sign Up"}
+                </Button>
             </div>
         </form>
     );
