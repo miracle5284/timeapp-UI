@@ -1,5 +1,160 @@
 @import "tailwindcss";
+@tailwind utilities;
 
-:root {
-    color-scheme: dark;
+/*─────────────────────────────────────────────────────────────────────────────*/
+/* 1) Define neon CSS variables & flicker keyframes                           */
+/*─────────────────────────────────────────────────────────────────────────────*/
+@layer base {
+    :root {
+        --neon-blue:    #00e5ff;
+        --neon-purple:  #d300ff;
+        --neon-pink:    #ff0080;
+        --neon-green:   #00ff9e;
+        --bg-dark:      #000000;
+        --bg-surface:   #111111;
+        --text-main:    #ffffff;
+        --text-muted:   #666666;
+    }
+
+    @keyframes neon-flicker {
+        0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+        20%, 24%, 55%                       { opacity: 0.4; }
+    }
+
+    body {
+        @apply bg-[var(--bg-dark)] text-[var(--text-main)] font-sans antialiased;
+    }
 }
+
+/*─────────────────────────────────────────────────────────────────────────────*/
+/* 2) Component layer: containers, digit cards, buttons                       */
+/*─────────────────────────────────────────────────────────────────────────────*/
+@layer components {
+    /* Timer card wrapper */
+    .t-container {
+        @apply relative rounded-2xl overflow-hidden
+        bg-[var(--bg-dark)] p-[clamp(20px,5vw,40px)]
+        max-w-[1000px] min-w-[320px] mx-auto;
+
+        &::before {
+            @apply content-[''] absolute top-0 left-0 w-full h-1
+            bg-gradient-to-r
+            from-[var(--neon-blue)]
+            via-[var(--neon-purple)]
+            to-[var(--neon-pink)];
+        }
+    }
+
+    /* Individual flip-digit card */
+    .digit-card {
+        @apply relative bg-[var(--bg-dark)] rounded-md
+        overflow-hidden mx-1 p-4;
+
+        &::before {
+            @apply content-[''] absolute inset-0
+            bg-gradient-to-br
+            from-[var(--neon-blue)]/20
+            via-transparent
+            to-transparent;
+        }
+    }
+
+    /* The actual digit text with glow + flicker */
+    .digit {
+        @apply text-[3rem] sm:text-[5rem] font-mono text-[var(--text-main)]
+        drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]
+        drop-shadow-[0_0_16px_rgba(0,229,255,0.6)];
+        animation: neon-flicker 2s infinite ease-in-out both;
+    }
+
+    /* Label under each digit */
+    .digit-label {
+        @apply text-xs text-[var(--text-muted)] tracking-widest mt-2;
+    }
+
+    /* Colon between digit groups */
+    .colon {
+        @apply flex flex-col justify-center items-center gap-1 sm:gap-4;
+    }
+    .colon-dot {
+        @apply bg-[var(--text-muted)] rounded-full w-2 h-2 sm:w-3 sm:h-3;
+    }
+
+    /* Neon-gradient control buttons */
+    .ctrl-btn {
+        @apply inline-flex items-center justify-center
+        font-semibold rounded-lg
+        bg-gradient-to-r from-[var(--neon-blue)] to-[var(--neon-purple)]
+        text-[var(--text-main)]
+        px-[clamp(15px,5vw,30px)] py-[clamp(10px,2vw,15px)]
+        shadow-[0_0_12px_rgba(0,229,255,0.7),0_0_20px_rgba(211,0,255,0.5)]
+        transition-all duration-300 ease-in-out
+        hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed;
+    }
+}
+
+/*─────────────────────────────────────────────────────────────────────────────*/
+/* 3) Utility layer: small helpers                                             */
+/*─────────────────────────────────────────────────────────────────────────────*/
+@layer utilities {
+    /* smooth scale on hover */
+    .smooth {
+        @apply transform transition-all duration-300 ease-in-out hover:scale-105;
+    }
+
+    /* pulsing “Time’s Up!” */
+    .neon-pulse {
+        @apply text-[var(--neon-pink)] font-bold;
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+}
+
+@layer utilities {
+    /* 1) define keyframes */
+    @keyframes fade {
+        from { opacity: 0 }
+        to   { opacity: 1 }
+    }
+    @keyframes scale-in {
+        0%   { opacity: 0; transform: scale(0.95) }
+        100% { opacity: 1; transform: scale(1) }
+    }
+    @keyframes fade-scale-in {
+        0%   { opacity: 0; transform: scale(0.95) }
+        100% { opacity: 1; transform: scale(1) }
+    }
+
+    /* 2) tie them to utility classes */
+    .animate-fade {
+        animation: fade 0.4s ease-in-out forwards;
+    }
+
+    .animate-fade-out {
+        /* name | duration | timing-function | delay | iteration-count | direction | fill-mode */
+        animation: fade 0.4s ease-in-out 0s 1 reverse forwards;
+    }
+    .animate-scale-in {
+        animation: scale-in 0.3s ease-out;
+    }
+    .animate-fade-scale-in {
+        animation: fade-scale-in 0.4s ease-out forwards;
+    }
+
+    /* 3) any other one-off utilities (if you still want them here) */
+    .max-h-screen {
+        max-height: 100vh;
+    }
+}
+
+@layer base {
+    :root {
+        --tw-color-primary: #3366FF;
+        --tw-color-secondary: #CC33FF;
+    }
+}
+/* then you can map those back into Tailwind utilities: */
+@layer utilities {
+    .from-primary { --tw-gradient-from: var(--tw-color-primary); }
+    .to-secondary { --tw-gradient-to:   var(--tw-color-secondary); }
+}
+

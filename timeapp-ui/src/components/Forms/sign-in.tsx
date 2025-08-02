@@ -125,10 +125,12 @@ export function SignInForm() {
 
             <div className="flex justify-center">
                 <Button
-                    className="w-full max-w-sm"
-                    text={loading ? "Signing In..." : "Sign In"}
+                    className="w-full max-w-sm ctrl-btn smooth shadow-glow
+                                        bg-[var(--color-accent)] hover:brightness-110"
                     disabled={loading}
-                />
+                >
+                    {loading ? "Signing In..." : "Sign In"}
+                </Button>
             </div>
         </form>
     );

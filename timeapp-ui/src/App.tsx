@@ -3,16 +3,16 @@ import { Routes, Route } from "react-router-dom";
 import CountDown from "./pages/countdown";
 import Navbar from "./components/navbar";
 import OAuthPopup from "./pages/popups/oauth-popup";
-import { registerSW } from 'virtual:pwa-register';
+//import { registerSW } from 'virtual:pwa-register';
 import { NotificationPermissionPrompt } from "./components/permission-prompt";
 import { useInstallPrompt }     from "../lib/hooks/useInstallPrompt";
 import { useIosInstall }         from "../lib/hooks/useIosInstall";
 import { useSafariInstallBanner } from "../lib/hooks/useSafariInstall";
 
-registerSW({
-    onNeedRefresh()  { console.log('Chrona is ready for online use;') },
-    onOfflineReady() { console.log('Chrona is ready for offline use;') }
-});
+// registerSW({
+//     onNeedRefresh()  { console.log('Chrona is ready for online use;') },
+//     onOfflineReady() { console.log('Chrona is ready for offline use;') }
+// });
 
 function App() {
     const { ready, promptInstall }  = useInstallPrompt();
@@ -20,7 +20,7 @@ function App() {
     const showSafariBanner          = useSafariInstallBanner();
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#111]">
+        <div className="min-h-screen max-h-screen h-screen flex flex-col bg-[#111]">
             {/* macOS Safari: File→Add to Home Screen */}
             {showSafariBanner && (
                 <div

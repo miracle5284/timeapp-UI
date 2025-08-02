@@ -52,12 +52,6 @@ declare global {
         };
     }
 
-    interface Window {
-        chrome?: {
-            runtime?: Chrome.Runtime;
-        };
-    }
-
     interface WindowEventMap {
         // In case you ever use window.env updates via events
         envchange: CustomEvent<Record<string,string>>;
