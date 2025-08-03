@@ -8,6 +8,7 @@ import { toast } from "react-hot-toast";
 import {useAuth} from "../../context/use-auth";
 import {USER_AUTH_TOKEN_ENDPOINT} from "../../../constant";
 import API from "../../../lib/api";
+import { AxiosError } from "axios";
 
 const signinSchema = z
     .object({
@@ -42,15 +43,27 @@ export function SignInForm() {
             const resp = await API.post(USER_AUTH_TOKEN_ENDPOINT, { email, password });
             const { access, refresh } = resp.data;
             if (access && refresh) {
-                login(access, refresh);
+                await login(access, refresh);
                 toast.success("Login successful");
             } else {
-                toast.error("Invalid credentials");
+                toast.error("Invalid credentials - no tokens received");
             }
         } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : "Something went wrong.";
-            console.error("Sign in error:", err);
-            toast.error(message);
+            if (err instanceof AxiosError) {
+                if (err.response?.status === 401) {
+                    toast.error("Invalid email or password");
+                } else if (err.response?.status === 0 || err.code === 'NETWORK_ERROR') {
+                    toast.error("Cannot connect to server. Please check your internet connection.");
+                } else if (err.response?.status && err.response.status >= 500) {
+                    toast.error("Server error. Please try again later.");
+                } else {
+                    const message = err.response?.data?.detail || err.message || "Something went wrong.";
+                    toast.error(message);
+                }
+            } else {
+                const message = err instanceof Error ? err.message : "Something went wrong.";
+                toast.error(message);
+            }
         } finally {
             setLoading(false);
         }
