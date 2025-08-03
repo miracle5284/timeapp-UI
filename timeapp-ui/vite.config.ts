@@ -15,6 +15,16 @@ export default defineConfig(({ mode }) => {
     const env = { ...process.env, ...loadEnv(mode, process.cwd()) };
     const isLocal = env.LOCAL === 'true';
     const isProd  = mode === 'production';
+    
+    // Debug environment variables in development
+    if (isLocal) {
+        console.log('Environment variables loaded:', {
+            VITE_BACKEND_API_URL: env.VITE_BACKEND_API_URL,
+            VITE_VPUBLIC_KEY: env.VITE_VPUBLIC_KEY,
+            BACKEND_URL: env.BACKEND_URL,
+            VPUBLIC_KEY: env.VPUBLIC_KEY
+        });
+    }
 
     // HTTPS config for local development
     const httpsConfig = isLocal
@@ -108,10 +118,10 @@ export default defineConfig(({ mode }) => {
             }
             : undefined,
 
-        // Env-injected globals
-        define: {
-            BACKEND_APP_URL:  JSON.stringify(env.BACKEND_URL),
-            VAPID_PUBLIC_KEY: JSON.stringify(env.VPUBLIC_KEY),
-        },
+            // Env-injected globals
+    define: {
+        BACKEND_APP_URL:  JSON.stringify(env.VITE_BACKEND_API_URL || env.BACKEND_URL || ''),
+        VAPID_PUBLIC_KEY: JSON.stringify(env.VITE_VPUBLIC_KEY || env.VPUBLIC_KEY || ''),
+    },
     };
 });

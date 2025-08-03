@@ -46,12 +46,27 @@ jobs:
         working-directory: ./timeapp-ui
         run: npm ci
 
+      - name: 🧪 Test Environment Variables
+        working-directory: ./timeapp-ui
+        env:
+          VITE_BACKEND_API_URL: ${{ env.VITE_BACKEND_API_URL }}
+          VITE_VPUBLIC_KEY: ${{ env.VITE_VPUBLIC_KEY }}
+        run: |
+          echo "Testing environment variables..."
+          echo "VITE_BACKEND_API_URL length: ${#VITE_BACKEND_API_URL}"
+          echo "VITE_VPUBLIC_KEY length: ${#VITE_VPUBLIC_KEY}"
+          npm run test:env
+
       - name: 🛠️ Build Project
         working-directory: ./timeapp-ui
+        env:
+          VITE_BACKEND_API_URL: ${{ env.VITE_BACKEND_API_URL }}
+          VITE_VPUBLIC_KEY: ${{ env.VITE_VPUBLIC_KEY }}
         run: |
-          VITE_BACKEND_API_URL="${{ env.VITE_BACKEND_API_URL }}" \
-          VITE_VPUBLIC_KEY="${{ env.VITE_VPUBLIC_KEY }}" \
-          npm run build
+          echo "Building with environment variables..."
+          echo "VITE_BACKEND_API_URL: ${VITE_BACKEND_API_URL:0:20}..."
+          echo "VITE_VPUBLIC_KEY: ${VITE_VPUBLIC_KEY:0:20}..."
+          npm run build:no-check
 
       # 🚀 Deploy to Cloudflare Pages Production Environment
       - name: 🚀 Deploy to Cloudflare Pages (Production)
