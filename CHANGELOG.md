@@ -1,5 +1,32 @@
 # 📦 Changelog
 
+## [2.0.0] – 2025‑08‑03  
+### 🌩 **Chrona UI 2.0 – Nimbus**  
+_“Fast. Installable. Notified.”_
+
+---
+
+### 🚀 Highlights
+
+- **Multi-Timer Support**  
+  Manage multiple countdown timers at once in a sleek, swipeable carousel interface.  
+  Easily add, rename, or delete timers with just a few clicks.
+
+- **Installable Web App (PWA)**  
+  Chrona can now be installed on desktop and mobile devices for a native-like experience.  
+  Works offline and loads instantly after first use.
+
+- **Push Notifications**  
+  Stay updated even when Chrona is closed — get real-time alerts when your timers complete.
+
+- **New Design Touches**  
+  Refined UI, better animations, new icons, and full support for modern browser capabilities.
+
+- **Smarter Deployments**  
+  Moved to Cloudflare Pages for faster, more reliable frontend deployment.
+
+---
+
 ## \[1.0.0] – 2025-05-12
 
 ### 🚀 Added
