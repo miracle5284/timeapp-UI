@@ -56,7 +56,7 @@ export default function SignUpForm() {
             const { email, password } = data;
             const loginResp = await API.post(USER_AUTH_TOKEN_ENDPOINT, {email, password});
             const { access, refresh } = loginResp.data;
-            login(access, refresh);
+            await login(access, refresh);
             toast.success("Account created successfully!");
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong.";

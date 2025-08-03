@@ -18,7 +18,7 @@ export interface User {
  */
 export interface AuthContextType {
     user: User | null | undefined; // null: logged out, undefined: loading
-    login: (access: string, refresh: string) => void;
+    login: (access: string, refresh: string) => Promise<void>;
     logout: () => void;
     loading: boolean;
     refetch: () => void;
