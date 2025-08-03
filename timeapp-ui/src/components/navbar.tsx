@@ -75,6 +75,7 @@ function Navbar() {
                                 </li>
                             ))}
                         </ul>
+                        {!user && (
                         <div className="flex space-x-6">
                             <a href="#" className="py-2 px-3 rounded-md" onClick={() => {
                                 setAuthModalView("sign-in")
@@ -86,6 +87,7 @@ function Navbar() {
                                 Create an account
                             </a>
                         </div>
+                        )}
                     </div>
                     )}
                 </div>

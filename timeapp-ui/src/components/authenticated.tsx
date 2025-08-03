@@ -34,7 +34,7 @@ export const Authenticated = () => {
     return (
         <div
             ref={dropdownRef}
-            className="hidden lg:flex justify-center space-x-6 items-center relative"
+            className="flex justify-center space-x-6 items-center relative"
         >
             <button
                 onClick={() => setShowMenu(!showMenu)}
