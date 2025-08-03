@@ -1,5 +1,4 @@
-
-name: Build & deploy Chrona UI via Wrangler
+name: Build & Deploy Chrona UI via Wrangler
 
 on:
   push:
@@ -15,15 +14,20 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    environment:
+      name: production
 
-      # 1) (Optional) Fetch build-time secrets from Azure Key Vault
-      - name: Azure Login
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v4
+
+      # 🔐 Authenticate with Azure to retrieve build-time secrets
+      - name: 🔑 Azure Login
         uses: Azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Fetch build-time secrets
+
+      - name: 🔍 Fetch build-time secrets from Azure Key Vault
         run: |
           echo "VITE_BACKEND_API_URL=$(az keyvault secret show \
             --vault-name ${{ secrets.KEY_VAULT_NAME }} \
@@ -32,24 +36,32 @@ jobs:
             --vault-name ${{ secrets.KEY_VAULT_NAME }} \
             --name VPUBLIC-KEY --query value -o tsv)" >> $GITHUB_ENV
 
-      # 2) Install & build
-      - name: Setup Node.js
+      # ⚙️ Install dependencies and build with injected VITE_ env vars
+      - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
-      - run: npm ci
-      - run: npm run build
+          node-version: '20.x'
 
-      # 3) Deploy via Wrangler
-      - name: Deploy to Cloudflare Pages
+      - name: 📥 Install Dependencies
+        working-directory: ./timeapp-ui
+        run: npm ci
+
+      - name: 🛠️ Build Project
+        working-directory: ./timeapp-ui
+        run: |
+          VITE_BACKEND_API_URL="${{ env.VITE_BACKEND_API_URL }}" \
+          VITE_VPUBLIC_KEY="${{ env.VITE_VPUBLIC_KEY }}" \
+          npm run build
+
+      # 🚀 Deploy to Cloudflare Pages Production Environment
+      - name: 🚀 Deploy to Cloudflare Pages (Production)
         id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken:    ${{ secrets.CF_API_TOKEN }}
           accountId:   ${{ secrets.CF_ACCOUNT_ID }}
-          command:     pages deploy ./dist --project-name=${{ secrets.CF_PROJECT_NAME }}
-          workingDirectory: ./
-          # optionally: gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: pages deploy ./dist --project-name=${{ secrets.CF_PROJECT_NAME }} --branch=master
+          workingDirectory: ./timeapp-ui
 
-      - name: Show deployment URL
+      - name: ✅ Show Deployment URL
         run: echo "✅ Deployed to ${{ steps.deploy.outputs.deployment-url }}"
